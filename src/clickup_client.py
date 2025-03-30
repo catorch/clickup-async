@@ -101,6 +101,7 @@ class ClickUp:
         self._folder_id: Optional[str] = None
         self._list_id: Optional[str] = None
         self._task_id: Optional[str] = None
+        self._template_id: Optional[str] = None
 
     async def __aenter__(self) -> "ClickUp":
         return self
@@ -259,6 +260,11 @@ class ClickUp:
     def task(self, task_id: str) -> "ClickUp":
         """Set the current task context for chained methods"""
         self._task_id = task_id
+        return self
+
+    def template(self, template_id: str) -> "ClickUp":
+        """Set the template ID for subsequent operations"""
+        self._template_id = template_id
         return self
 
     # Workspace methods
@@ -578,13 +584,75 @@ class ClickUp:
 
         Returns:
             True if successful
+
+        Raises:
+            ResourceNotFound: If the folder doesn't exist
+            ClickUpError: For other API errors
         """
         folder_id = folder_id or self._folder_id
         if not folder_id:
             raise ValueError("Folder ID must be provided")
 
-        await self._request("DELETE", f"folder/{folder_id}")
-        return True
+        try:
+            await self._request("DELETE", f"folder/{folder_id}")
+            return True
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise ResourceNotFound(f"Folder {folder_id} not found")
+            raise ClickUpError(f"Failed to delete folder: {str(e)}")
+
+    async def create_folder_from_template(
+        self,
+        name: str,
+        space_id: Optional[str] = None,
+        template_id: Optional[str] = None,
+        return_immediately: bool = True,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Folder:
+        """
+        Create a new folder using a folder template within a space.
+
+        Args:
+            name: Name of the new folder
+            space_id: ID of the space where the folder will be created
+            template_id: ID of the folder template to use
+            return_immediately: Whether to return immediately without waiting for all assets to be created
+            options: Additional options for creating the folder from template
+
+        Returns:
+            The newly created folder
+
+        Raises:
+            ValidationError: If required parameters are missing
+            ResourceNotFound: If the space or template doesn't exist
+            ClickUpError: For other API errors
+        """
+        space_id = space_id or self._space_id
+        if not space_id:
+            raise ValidationError("space_id is required")
+
+        template_id = template_id or self._template_id
+        if not template_id:
+            raise ValidationError("template_id is required")
+
+        if not name:
+            raise ValidationError("name is required")
+
+        data = {
+            "name": name,
+            "return_immediately": return_immediately,
+        }
+
+        if options:
+            data["options"] = options
+
+        response = await self._request(
+            "POST",
+            f"space/{space_id}/folder_template/{template_id}",
+            data=data,
+        )
+
+        return Folder(**response)
 
     # List methods
 
