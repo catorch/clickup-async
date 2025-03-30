@@ -12,8 +12,7 @@ import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
 
-from src.clickup_python_async import ClickUp, Folder, Space, Task, TaskList, Workspace
-from src.clickup_python_async.exceptions import ClickUpError
+from src import ClickUp, ClickUpError, Folder, Space, Task, TaskList, Workspace
 
 # Load environment variables from .env file
 load_dotenv()
