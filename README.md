@@ -109,7 +109,7 @@ comment = await client.task("task_id").create_task_comment("Great work!")
 
 ## Documentation
 
-For more detailed examples and API documentation, visit our [GitHub repository](https://github.com/yourusername/clickup-async).
+For more detailed examples and API documentation, visit our [GitHub repository](https://github.com/catorch/clickup-async).
 
 ### Working with Tasks
 
@@ -158,7 +158,7 @@ while True:
 
 1. Clone the repository
    ```bash
-   git clone https://github.com/yourusername/clickup-async.git
+   git clone https://github.com/catorch/clickup-async.git
    cd clickup-async
    ```
 
