@@ -175,7 +175,7 @@ while True:
 
 4. Run tests (requires a ClickUp API token in the environment)
    ```bash
-   export CLICKUP_API_TOKEN=your_token_here
+   export CLICKUP_API_KEY=your_token_here
    pytest
    ```
 
