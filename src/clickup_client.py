@@ -14,14 +14,12 @@ Features:
 import asyncio
 import json
 import logging
-import os
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import httpx
-from pydantic import BaseModel
 
 from .exceptions import (
     AuthenticationError,
