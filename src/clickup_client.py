@@ -32,6 +32,9 @@ from .models import (
     Checklist,
     Comment,
     Folder,
+    Goal,
+    KeyResult,
+    KeyResultType,
     PaginatedResponse,
     Priority,
     Space,
@@ -186,6 +189,16 @@ class ClickUp:
                 )
 
                 self._update_rate_limit_info(response)
+
+                # Check for 404 before any other processing
+                if response.status_code == 404:
+                    error_data = {}
+                    try:
+                        error_data = response.json()
+                    except (ValueError, KeyError):
+                        pass
+                    err_msg = error_data.get("err", f"Resource not found: {endpoint}")
+                    raise ResourceNotFound(err_msg, 404, error_data)
 
                 if response.status_code == 429:
                     if self.retry_rate_limited_requests and retries < self.max_retries:
@@ -704,6 +717,10 @@ class ClickUp:
 
         Returns:
             List object
+
+        Raises:
+            ResourceNotFound: If the list doesn't exist
+            ClickUpError: For other API errors
         """
         list_id = list_id or self._list_id
         if not list_id:
@@ -831,13 +848,178 @@ class ClickUp:
 
         Returns:
             True if successful
+
+        Raises:
+            ResourceNotFound: If the list doesn't exist
+            ClickUpError: For other API errors
         """
         list_id = list_id or self._list_id
         if not list_id:
             raise ValueError("List ID must be provided")
 
-        await self._request("DELETE", f"list/{list_id}")
+        try:
+            await self._request("DELETE", f"list/{list_id}")
+            return True
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise ResourceNotFound(f"List {list_id} not found")
+            raise ClickUpError(f"Failed to delete list: {str(e)}")
+
+    async def add_task_to_list(
+        self,
+        task_id: Optional[str] = None,
+        list_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Add a task to an additional list.
+        Note: This endpoint requires the Tasks in Multiple List ClickApp to be enabled.
+
+        Args:
+            task_id: ID of the task to add (uses the one set by task() if not provided)
+            list_id: ID of the list to add the task to (uses the one set by list() if not provided)
+
+        Returns:
+            True if successful
+
+        Raises:
+            ValueError: If task_id or list_id is not provided
+            ClickUpError: If the Tasks in Multiple List ClickApp is not enabled
+        """
+        task_id = task_id or self._task_id
+        list_id = list_id or self._list_id
+
+        if not task_id:
+            raise ValueError("Task ID must be provided")
+        if not list_id:
+            raise ValueError("List ID must be provided")
+
+        await self._request("POST", f"list/{list_id}/task/{task_id}")
         return True
+
+    async def remove_task_from_list(
+        self,
+        task_id: Optional[str] = None,
+        list_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Remove a task from an additional list.
+        Note: You cannot remove a task from its home list.
+        This endpoint requires the Tasks in Multiple List ClickApp to be enabled.
+
+        Args:
+            task_id: ID of the task to remove (uses the one set by task() if not provided)
+            list_id: ID of the list to remove the task from (uses the one set by list() if not provided)
+
+        Returns:
+            True if successful
+
+        Raises:
+            ValueError: If task_id or list_id is not provided
+            ClickUpError: If the Tasks in Multiple List ClickApp is not enabled
+        """
+        task_id = task_id or self._task_id
+        list_id = list_id or self._list_id
+
+        if not task_id:
+            raise ValueError("Task ID must be provided")
+        if not list_id:
+            raise ValueError("List ID must be provided")
+
+        await self._request("DELETE", f"list/{list_id}/task/{task_id}")
+        return True
+
+    async def create_list_from_template(
+        self,
+        name: str,
+        folder_id: Optional[str] = None,
+        space_id: Optional[str] = None,
+        template_id: Optional[str] = None,
+        return_immediately: bool = True,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> TaskList:
+        """
+        Create a new list using a list template in a folder or space.
+        This request runs synchronously by default with return_immediately=true.
+        The request returns the future List ID immediately, but the List might not be created
+        at the time of the request returning.
+
+        Args:
+            name: Name of the new list
+            folder_id: ID of the folder (uses the one set by folder() if not provided)
+            space_id: ID of the space (uses the one set by space() if not provided)
+            template_id: ID of the template (uses the one set by template() if not provided)
+            return_immediately: Whether to return immediately without waiting for all assets to be created
+            options: Additional options for creating the list from template
+
+        Returns:
+            The created List object
+
+        Raises:
+            ValueError: If neither folder_id nor space_id is provided, or if template_id is not provided
+            ResourceNotFound: If the template, folder, or space doesn't exist
+            ValidationError: If the request data is invalid
+            ClickUpError: For other API errors
+        """
+        template_id = template_id or self._template_id
+        if not template_id:
+            raise ValueError("Template ID must be provided")
+
+        data = {
+            "name": name,
+            "return_immediately": return_immediately,
+        }
+
+        if options:
+            data["options"] = options
+
+        if folder_id or self._folder_id:
+            folder_id = folder_id or self._folder_id
+            response = await self._request(
+                "POST",
+                f"folder/{folder_id}/list_template/{template_id}",
+                data=data,
+            )
+        elif space_id or self._space_id:
+            space_id = space_id or self._space_id
+            response = await self._request(
+                "POST",
+                f"space/{space_id}/list_template/{template_id}",
+                data=data,
+            )
+        else:
+            raise ValueError("Either folder_id or space_id must be provided")
+
+        return TaskList.model_validate(response)
+
+    async def get_list_with_markdown(
+        self,
+        list_id: Optional[str] = None,
+        include_markdown_description: bool = True,
+    ) -> TaskList:
+        """
+        Get details for a specific list with markdown support.
+
+        Args:
+            list_id: ID of the list to fetch (uses the one set by list() if not provided)
+            include_markdown_description: Whether to return list descriptions in Markdown format
+
+        Returns:
+            List object with markdown content if requested
+
+        Raises:
+            ValueError: If list_id is not provided
+            ResourceNotFound: If the list doesn't exist
+            ClickUpError: For other API errors
+        """
+        list_id = list_id or self._list_id
+        if not list_id:
+            raise ValueError("List ID must be provided")
+
+        params = {
+            "include_markdown_description": str(include_markdown_description).lower()
+        }
+        response = await self._request("GET", f"list/{list_id}", params=params)
+        return TaskList.model_validate(response)
 
     # Task methods
 
@@ -1497,3 +1679,355 @@ class ClickUp:
             "GET", f"task/{task_id}/time_in_status", params=params
         )
         return response.get("data", {})
+
+    # Goal methods
+
+    async def get_goals(
+        self,
+        workspace_id: Optional[str] = None,
+        include_completed: bool = True,
+    ) -> List[Goal]:
+        """
+        Get all goals in a workspace.
+
+        Args:
+            workspace_id: ID of the workspace (uses the one set by workspace() if not provided)
+            include_completed: Whether to include completed goals
+
+        Returns:
+            List of Goal objects
+        """
+        workspace_id = workspace_id or self._workspace_id
+        if not workspace_id:
+            raise ValueError("workspace_id is required")
+
+        params = {"include_completed": "true" if include_completed else "false"}
+        response = await self._request(
+            "GET", f"team/{workspace_id}/goal", params=params
+        )
+
+        # Log the raw response for debugging
+        print(f"Raw Goals Response: {response}")
+
+        # Handle both possible response structures
+        goals_data = response.get("goals", [])
+        if not goals_data and "goal" in response:
+            goals_data = [response["goal"]]
+
+        # Ensure each goal has a color
+        for goal in goals_data:
+            if "color" not in goal or goal["color"] is None:
+                goal["color"] = "#000000"  # Default color
+
+        return [Goal.model_validate(goal) for goal in goals_data]
+
+    async def create_goal(
+        self,
+        workspace_id: str,
+        name: str,
+        due_date: Union[str, int, datetime],
+        description: str = "",
+        multiple_owners: bool = False,
+        owners: Optional[List[str]] = None,
+        color: Optional[str] = None,
+    ) -> Goal:
+        """Create a new goal in the specified workspace."""
+        if not workspace_id:
+            raise ValueError("workspace_id is required")
+
+        # Convert due_date to millisecond timestamp
+        if isinstance(due_date, datetime):
+            due_date_ts = int(due_date.timestamp() * 1000)
+        elif isinstance(due_date, str):
+            try:
+                due_date_ts = int(float(due_date) * 1000)
+            except ValueError:
+                # Try parsing as datetime string
+                due_date_ts = int(datetime.fromisoformat(due_date).timestamp() * 1000)
+        else:
+            # Assume it's already a timestamp in milliseconds
+            due_date_ts = int(due_date)
+
+        data = {
+            "name": name,
+            "due_date": due_date_ts,
+            "description": description,
+            "multiple_owners": multiple_owners,
+            "owners": owners or [],
+            "color": color or "#000000",
+        }
+
+        response = await self._request("POST", f"team/{workspace_id}/goal", data=data)
+
+        # Log the raw response for debugging
+        print(f"Raw API Response: {response}")
+
+        try:
+            if "goal" in response:
+                goal_data = response["goal"]
+                # Add team_id if not present in response
+                if "team_id" not in goal_data:
+                    goal_data["team_id"] = workspace_id
+                # Log the goal data being validated
+                print(f"Goal Data for Validation: {goal_data}")
+                return Goal.model_validate(goal_data)
+            else:
+                # Log the response structure when 'goal' key is missing
+                print(f"Response keys: {response.keys()}")
+                raise ClickUpError(f"Unexpected response format: {response}")
+        except ValidationError as e:
+            # Log validation errors
+            print(f"Validation Error: {str(e)}")
+            raise ClickUpError(f"Failed to validate goal data: {e}") from e
+
+    async def get_goal(self, goal_id: str) -> Goal:
+        """
+        Get details of a specific goal.
+
+        Args:
+            goal_id: ID of the goal to fetch
+
+        Returns:
+            Goal object
+        """
+        response = await self._request("GET", f"goal/{goal_id}")
+        if "goal" not in response:
+            raise ClickUpError(
+                "Unexpected response format from ClickUp API", response=response
+            )
+        return Goal.model_validate(response["goal"])
+
+    async def update_goal(
+        self,
+        goal_id: str,
+        name: Optional[str] = None,
+        due_date: Optional[Union[str, int, datetime]] = None,
+        description: Optional[str] = None,
+        add_owners: Optional[List[str]] = None,
+        rem_owners: Optional[List[str]] = None,
+        color: Optional[str] = None,
+    ) -> Goal:
+        """
+        Update an existing goal.
+
+        Args:
+            goal_id: ID of the goal to update
+            name: New name for the goal
+            due_date: New due date for the goal
+            description: New description for the goal
+            add_owners: List of user IDs to add as owners
+            rem_owners: List of user IDs to remove as owners
+            color: New color for the goal
+
+        Returns:
+            The updated Goal object
+        """
+        data = {}
+        if name is not None:
+            data["name"] = name
+        if due_date is not None:
+            data["due_date"] = str(convert_to_timestamp(due_date))
+        if description is not None:
+            data["description"] = description
+        if add_owners is not None:
+            data["add_owners"] = add_owners
+        if rem_owners is not None:
+            data["rem_owners"] = rem_owners
+        if color is not None:
+            data["color"] = color
+
+        response = await self._request("PUT", f"goal/{goal_id}", data=data)
+        if "goal" not in response:
+            raise ClickUpError(
+                "Unexpected response format from ClickUp API", response=response
+            )
+        return Goal.model_validate(response["goal"])
+
+    async def delete_goal(self, goal_id: str) -> bool:
+        """
+        Delete a goal.
+
+        Args:
+            goal_id: ID of the goal to delete
+
+        Returns:
+            True if successful
+        """
+        await self._request("DELETE", f"goal/{goal_id}")
+        return True
+
+    async def create_key_result(
+        self,
+        goal_id: str,
+        name: str,
+        type: Union[str, KeyResultType],
+        steps_start: int = 0,
+        steps_end: int = 0,
+        unit: str = "points",
+        owners: Optional[List[str]] = None,
+        task_ids: Optional[List[str]] = None,
+        list_ids: Optional[List[str]] = None,
+        note: Optional[str] = None,
+    ) -> KeyResult:
+        """
+        Create a new key result for a goal.
+
+        Args:
+            goal_id: ID of the goal to add the key result to
+            name: Name of the key result
+            type: Type of the key result (number, percentage, currency, boolean, automatic)
+            steps_start: Starting value for the key result
+            steps_end: Target value for the key result
+            unit: Unit of measurement (e.g., "points", "%", "USD")
+            owners: List of user IDs who own this key result
+            task_ids: List of task IDs linked to this key result
+            list_ids: List of list IDs linked to this key result
+            note: Note about the key result
+
+        Returns:
+            The created KeyResult object
+        """
+        data = {
+            "name": name,
+            "type": type.value if isinstance(type, KeyResultType) else type,
+            "steps_start": steps_start,
+            "steps_end": steps_end,
+            "unit": unit,
+            "owners": owners or [],
+            "task_ids": task_ids or [],
+            "list_ids": list_ids or [],
+        }
+        if note is not None:
+            data["note"] = note
+
+        response = await self._request("POST", f"goal/{goal_id}/key_result", data=data)
+        print("Raw Key Result Response:", response)
+
+        if "key_result" not in response:
+            raise ClickUpError("Unexpected response format: missing 'key_result' key")
+
+        # Merge the request data with the response data to ensure all required fields are present
+        key_result_data = response["key_result"]
+        key_result_data.update(
+            {
+                "name": name,
+                "type": type.value if isinstance(type, KeyResultType) else type,
+                "steps_start": steps_start,
+                "steps_end": steps_end,
+                "unit": unit,
+                "owners": owners or [],
+                "task_ids": task_ids or [],
+                "list_ids": list_ids or [],
+            }
+        )
+
+        try:
+            return KeyResult.model_validate(key_result_data)
+        except ValidationError as e:
+            print("Key Result Data for Validation:", key_result_data)
+            print("Validation Error:", str(e))
+            raise
+
+    async def update_key_result(
+        self,
+        key_result_id: str,
+        name: Optional[str] = None,
+        type: Optional[Union[str, KeyResultType]] = None,
+        steps_start: Optional[int] = None,
+        steps_end: Optional[int] = None,
+        steps_current: Optional[int] = None,
+        unit: Optional[str] = None,
+        owners: Optional[List[str]] = None,
+        task_ids: Optional[List[str]] = None,
+        list_ids: Optional[List[str]] = None,
+        note: Optional[str] = None,
+    ) -> KeyResult:
+        """
+        Update an existing key result.
+
+        Args:
+            key_result_id: ID of the key result to update
+            name: New name for the key result
+            type: New type for the key result
+            steps_start: New starting value
+            steps_end: New target value
+            steps_current: Current progress value
+            unit: New unit of measurement
+            owners: New list of owner user IDs
+            task_ids: New list of linked task IDs
+            list_ids: New list of linked list IDs
+            note: Note about the update
+
+        Returns:
+            The updated KeyResult object
+        """
+        data = {}
+        if name is not None:
+            data["name"] = name
+        if type is not None:
+            data["type"] = type.value if isinstance(type, KeyResultType) else type
+        if steps_start is not None:
+            data["steps_start"] = steps_start
+        if steps_end is not None:
+            data["steps_end"] = steps_end
+        if steps_current is not None:
+            data["steps_current"] = steps_current
+        if unit is not None:
+            data["unit"] = unit
+        if owners is not None:
+            data["owners"] = owners
+        if task_ids is not None:
+            data["task_ids"] = task_ids
+        if list_ids is not None:
+            data["list_ids"] = list_ids
+        if note is not None:
+            data["note"] = note
+
+        response = await self._request("PUT", f"key_result/{key_result_id}", data=data)
+        print("Raw Key Result Response:", response)
+
+        if "key_result" not in response:
+            raise ClickUpError("Unexpected response format: missing 'key_result' key")
+
+        # Merge the request data with the response data to ensure all required fields are present
+        key_result_data = response["key_result"]
+        if name is not None:
+            key_result_data["name"] = name
+        if type is not None:
+            key_result_data["type"] = (
+                type.value if isinstance(type, KeyResultType) else type
+            )
+        if unit is not None:
+            key_result_data["unit"] = unit
+        if steps_start is not None:
+            key_result_data["steps_start"] = steps_start
+        if steps_end is not None:
+            key_result_data["steps_end"] = steps_end
+        if steps_current is not None:
+            key_result_data["steps_current"] = steps_current
+        if owners is not None:
+            key_result_data["owners"] = owners
+        if task_ids is not None:
+            key_result_data["task_ids"] = task_ids
+        if list_ids is not None:
+            key_result_data["list_ids"] = list_ids
+
+        try:
+            return KeyResult.model_validate(key_result_data)
+        except ValidationError as e:
+            print("Key Result Data for Validation:", key_result_data)
+            print("Validation Error:", str(e))
+            raise
+
+    async def delete_key_result(self, key_result_id: str) -> bool:
+        """
+        Delete a key result.
+
+        Args:
+            key_result_id: ID of the key result to delete
+
+        Returns:
+            True if successful
+        """
+        await self._request("DELETE", f"key_result/{key_result_id}")
+        return True

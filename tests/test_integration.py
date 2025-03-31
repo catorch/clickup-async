@@ -20,6 +20,7 @@ import pytest_asyncio
 from dotenv import load_dotenv
 
 from src import ClickUp
+from src.exceptions import ValidationError
 from src.models import Priority
 
 # Configure logging
@@ -101,6 +102,80 @@ async def test_list_operations(client):
     lists = await client.get_lists(space_id=SPACE_ID)
     assert len(lists) > 0
     assert any(l.id == LIST_ID for l in lists)
+
+    # Test markdown support
+    list_with_markdown = await client.get_list_with_markdown(LIST_ID)
+    assert list_with_markdown is not None
+    assert list_with_markdown.id == LIST_ID
+    assert hasattr(list_with_markdown, "content")
+
+    # Create a test task for multiple list operations
+    task = await client.create_task(
+        name=f"Multiple List Test Task {datetime.now().isoformat()}",
+        list_id=LIST_ID,
+        description="Test task for multiple list operations",
+    )
+
+    # Create another list to test multiple list operations
+    another_list = await client.create_list(
+        name=f"Another Test List {datetime.now().isoformat()}",
+        space_id=SPACE_ID,
+    )
+
+    try:
+        # Test adding task to another list
+        try:
+            result = await client.add_task_to_list(task.id, another_list.id)
+            assert result is True
+
+            # Test removing task from the additional list
+            result = await client.remove_task_from_list(task.id, another_list.id)
+            assert result is True
+        except ValidationError as e:
+            if "Tasks in multiple lists limit exceeded" in str(e):
+                pytest.skip("Tasks in Multiple Lists feature is not enabled")
+            raise
+    finally:
+        # Clean up
+        await client.delete_task(task.id)
+        await client.delete_list(another_list.id)
+
+
+@pytest.mark.skip(reason="Requires a valid template ID to run")
+@pytest.mark.asyncio
+async def test_list_template_operations(client):
+    """Test creating lists from templates.
+
+    This test requires a valid template ID to run. To run this test:
+    1. Create a list template in your ClickUp workspace
+    2. Get the template ID
+    3. Replace the template_id value with your actual template ID
+    4. Remove the @pytest.mark.skip decorator
+    """
+    template_id = "your_template_id"  # Replace with actual template ID
+    list_name = f"Template List {datetime.now().isoformat()}"
+
+    # Create list from template in space
+    list_from_template = await client.create_list_from_template(
+        name=list_name,
+        space_id=SPACE_ID,
+        template_id=template_id,
+        return_immediately=True,
+        options={
+            "content": "Template list description",
+            "time_estimate": True,
+            "automation": True,
+            "include_views": True,
+        },
+    )
+    assert list_from_template is not None
+    assert list_from_template.name == list_name
+    assert (
+        list_from_template.space is not None and list_from_template.space.id == SPACE_ID
+    )
+
+    # Clean up
+    await client.delete_list(list_from_template.id)
 
 
 @pytest.mark.asyncio

@@ -7,7 +7,7 @@ This module contains Pydantic models for the ClickUp API.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from enum import IntEnum
+from enum import Enum, IntEnum
 from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -668,3 +668,47 @@ class PaginatedResponse(Sequence[T]):
             next_page_params["page"] = self._next_page_params["page"] + 1
 
         return PaginatedResponse(items, self._client, next_page_params)
+
+
+class KeyResultType(str, Enum):
+    """Types of key results (targets) in ClickUp goals"""
+
+    NUMBER = "number"
+    CURRENCY = "currency"
+    BOOLEAN = "boolean"
+    PERCENTAGE = "percentage"
+    AUTOMATIC = "automatic"
+
+
+class KeyResult(BaseModel):
+    """A key result (target) in a ClickUp goal"""
+
+    id: str
+    name: str
+    owners: List[str] = []  # Make owners optional with empty list default
+    type: KeyResultType
+    steps_start: int = 0  # Make optional with default value
+    steps_end: int = 0  # Make optional with default value
+    steps_current: Optional[int] = None
+    unit: str
+    task_ids: Optional[List[str]] = None
+    list_ids: Optional[List[str]] = None
+    note: Optional[str] = None
+
+
+class Goal(BaseModel):
+    """A ClickUp goal"""
+
+    id: str
+    name: str
+    team_id: str
+    due_date: int
+    description: str
+    multiple_owners: bool
+    owners: List[str]
+    color: str
+    key_results: Optional[List[KeyResult]] = None
+    date_created: Optional[int] = None
+    date_updated: Optional[int] = None
+    creator: Optional[int] = None
+    completed: Optional[bool] = None

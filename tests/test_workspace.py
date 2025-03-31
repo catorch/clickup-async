@@ -4,7 +4,7 @@ Tests for ClickUp workspace operations.
 
 import pytest
 
-from src.clickup_python_async import Workspace
+from src.models import Workspace
 
 
 @pytest.mark.asyncio
