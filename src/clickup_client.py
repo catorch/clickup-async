@@ -34,6 +34,7 @@ from .models import (
     BulkTimeInStatus,
     Checklist,
     Comment,
+    CustomItem,
     Folder,
     Goal,
     KeyResult,
@@ -324,6 +325,34 @@ class ClickUp:
 
         response = await self._request("GET", f"team/{workspace_id}")
         return Workspace.model_validate(response.get("team", {}))
+
+    async def get_custom_task_types(
+        self,
+        workspace_id: Optional[str] = None,
+    ) -> List[CustomItem]:
+        """
+        Get all custom task types available in a workspace.
+
+        Args:
+            workspace_id: ID of the workspace (uses the one set by workspace() if not provided)
+
+        Returns:
+            List of CustomItem objects representing the custom task types
+
+        Raises:
+            ValueError: If workspace_id is not provided
+            AuthenticationError: If authentication fails
+            ResourceNotFound: If the workspace doesn't exist
+            ClickUpError: For other API errors
+        """
+        workspace_id = workspace_id or self._workspace_id
+        if not workspace_id:
+            raise ValueError("Workspace ID must be provided")
+
+        response = await self._request("GET", f"team/{workspace_id}/custom_item")
+        return [
+            CustomItem.model_validate(item) for item in response.get("custom_items", [])
+        ]
 
     # Space methods
 

@@ -777,3 +777,24 @@ class Goal(BaseModel):
     date_updated: Optional[int] = None
     creator: Optional[int] = None
     completed: Optional[bool] = None
+
+
+class CustomItemAvatar(BaseModel):
+    """Represents an avatar for a custom task type"""
+
+    source: Optional[str] = None
+    value: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CustomItem(BaseModel):
+    """Represents a custom task type in a workspace"""
+
+    id: int
+    name: str
+    name_plural: Optional[str] = None
+    description: Optional[str] = None
+    avatar: Optional[CustomItemAvatar] = None
+
+    model_config = ConfigDict(populate_by_name=True)
