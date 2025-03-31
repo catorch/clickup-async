@@ -18,12 +18,16 @@ from src import ClickUp, ClickUpError, Folder, Space, Task, TaskList, Workspace
 load_dotenv()
 
 # Get API token from environment variable
-API_TOKEN = cast(str, os.environ.get("CLICKUP_API_KEY"))
+API_TOKEN = cast(str, os.environ.get("CLICKUP_API_TOKEN"))
 if not API_TOKEN:
     raise ValueError(
-        "CLICKUP_API_KEY environment variable must be set to run tests."
+        "CLICKUP_API_TOKEN environment variable must be set to run tests."
         "Create one at https://app.clickup.com/settings/apps"
     )
+
+# Configure pytest-asyncio
+pytest_plugins = ("pytest_asyncio",)
+pytestmark = pytest.mark.asyncio
 
 
 @pytest.fixture(scope="session")
