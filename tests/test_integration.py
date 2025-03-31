@@ -324,3 +324,77 @@ async def test_task_time_tracking(client):
 
     # Clean up
     await client.delete_task(task.id)
+
+
+@pytest.mark.asyncio
+async def test_task_attachments(client):
+    """Test task attachment operations."""
+    # Create a test task
+    task = await client.create_task(
+        name=f"Attachment Test Task {datetime.now().isoformat()}",
+        list_id=LIST_ID,
+        description="Test task for attachments",
+    )
+
+    try:
+        # Create a temporary test file
+        test_file_path = "test_attachment.txt"
+        test_content = b"Test attachment content"
+        with open(test_file_path, "wb") as f:
+            f.write(test_content)
+
+        # Test uploading file by path
+        attachment = await client.create_task_attachment(
+            task_id=task.id,
+            file_path=test_file_path,
+        )
+        assert attachment is not None
+        assert "id" in attachment
+        assert "title" in attachment
+        assert attachment["title"] == "test_attachment.txt"
+
+        # Test uploading file with raw data
+        attachment2 = await client.create_task_attachment(
+            task_id=task.id,
+            file_data=b"Another test attachment",
+            file_name="test_attachment2.txt",
+        )
+        assert attachment2 is not None
+        assert "id" in attachment2
+        assert "title" in attachment2
+        assert attachment2["title"] == "test_attachment2.txt"
+
+        # Test error cases
+        with pytest.raises(
+            ValueError, match="Either file_path or file_data must be provided"
+        ):
+            await client.create_task_attachment(task_id=task.id)
+
+        with pytest.raises(
+            ValueError, match="Cannot provide both file_path and file_data"
+        ):
+            await client.create_task_attachment(
+                task_id=task.id,
+                file_path=test_file_path,
+                file_data=b"test",
+            )
+
+        with pytest.raises(
+            ValueError, match="file_name is required when using file_data"
+        ):
+            await client.create_task_attachment(
+                task_id=task.id,
+                file_data=b"test",
+            )
+
+        with pytest.raises(ValueError, match="File not found"):
+            await client.create_task_attachment(
+                task_id=task.id,
+                file_path="nonexistent_file.txt",
+            )
+
+    finally:
+        # Clean up
+        if os.path.exists(test_file_path):
+            os.remove(test_file_path)
+        await client.delete_task(task.id)
