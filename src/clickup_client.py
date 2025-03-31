@@ -12,7 +12,9 @@ Features:
 """
 
 import asyncio
+import json
 import logging
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
@@ -26,6 +28,7 @@ from .exceptions import (
     ValidationError,
 )
 from .models import (
+    BulkTimeInStatus,
     Checklist,
     Comment,
     Folder,
@@ -34,6 +37,7 @@ from .models import (
     Space,
     Task,
     TaskList,
+    TaskTimeInStatus,
     TimeEntry,
     Workspace,
 )
@@ -94,6 +98,7 @@ class ClickUp:
         self._client = httpx.AsyncClient(timeout=timeout)
         self._rate_limit_remaining = 100
         self._rate_limit_reset = datetime.now().timestamp()
+        self._current_method = None
 
         # Resource managers for fluent interface
         self._workspace_id: Optional[str] = None
@@ -847,12 +852,21 @@ class ClickUp:
         statuses: Optional[List[str]] = None,
         include_closed: bool = False,
         assignees: Optional[List[str]] = None,
+        watchers: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
         due_date_gt: Optional[Union[str, int, datetime]] = None,
         due_date_lt: Optional[Union[str, int, datetime]] = None,
         date_created_gt: Optional[Union[str, int, datetime]] = None,
         date_created_lt: Optional[Union[str, int, datetime]] = None,
         date_updated_gt: Optional[Union[str, int, datetime]] = None,
         date_updated_lt: Optional[Union[str, int, datetime]] = None,
+        date_done_gt: Optional[Union[str, int, datetime]] = None,
+        date_done_lt: Optional[Union[str, int, datetime]] = None,
+        custom_fields: Optional[List[Dict[str, Any]]] = None,
+        custom_field: Optional[List[Dict[str, Any]]] = None,
+        custom_items: Optional[List[int]] = None,
+        include_markdown_description: bool = False,
+        priority: Optional[Union[int, Priority]] = None,
     ) -> PaginatedResponse[Task]:
         """
         Get tasks from a list with pagination
@@ -867,64 +881,90 @@ class ClickUp:
             statuses: Filter by status names
             include_closed: Include closed tasks
             assignees: Filter by assignee IDs
+            watchers: Filter by watcher IDs
+            tags: Filter by tags
             due_date_gt: Tasks due after this date
             due_date_lt: Tasks due before this date
             date_created_gt: Tasks created after this date
             date_created_lt: Tasks created before this date
             date_updated_gt: Tasks updated after this date
             date_updated_lt: Tasks updated before this date
+            date_done_gt: Tasks completed after this date
+            date_done_lt: Tasks completed before this date
+            custom_fields: Filter by custom field values
+            custom_field: Filter by a single custom field value
+            custom_items: Filter by custom task types (0=Task, 1=Milestone)
+            include_markdown_description: Return task descriptions in Markdown format
+            priority: Filter by priority level (1=Urgent, 2=High, 3=Normal, 4=Low)
 
         Returns:
             PaginatedResponse containing tasks
         """
-        list_id = list_id or self._list_id
-        if not list_id:
-            raise ValueError("List ID must be provided")
+        self._current_method = "get_tasks"
+        try:
+            list_id = list_id or self._list_id
+            if not list_id:
+                raise ValueError("List ID must be provided")
 
-        params = {
-            "archived": str(archived).lower(),
-            "page": page,
-            "order_by": order_by,
-            "reverse": str(reverse).lower(),
-            "subtasks": str(subtasks).lower(),
-            "include_closed": str(include_closed).lower(),
-        }
+            params = {
+                "archived": str(archived).lower(),
+                "page": page,
+                "order_by": order_by,
+                "reverse": str(reverse).lower(),
+                "subtasks": str(subtasks).lower(),
+                "include_closed": str(include_closed).lower(),
+                "include_markdown_description": str(
+                    include_markdown_description
+                ).lower(),
+            }
 
-        if statuses:
-            params["statuses[]"] = ",".join(statuses)
+            if statuses:
+                params["statuses[]"] = statuses
+            if assignees:
+                params["assignees[]"] = assignees
+            if watchers:
+                params["watchers[]"] = watchers
+            if tags:
+                params["tags[]"] = tags
+            if custom_fields:
+                params["custom_fields"] = json.dumps(custom_fields)
+            if custom_field:
+                params["custom_field"] = json.dumps(custom_field)
+            if custom_items:
+                params["custom_items[]"] = custom_items
+            if priority is not None:
+                if isinstance(priority, Priority):
+                    params["priority"] = str(priority.value)
+                else:
+                    params["priority"] = str(priority)
 
-        if assignees:
-            params["assignees[]"] = ",".join(assignees)
+            # Handle date filters
+            date_filters = {
+                "due_date": (due_date_gt, due_date_lt),
+                "date_created": (date_created_gt, date_created_lt),
+                "date_updated": (date_updated_gt, date_updated_lt),
+                "date_done": (date_done_gt, date_done_lt),
+            }
 
-        if due_date_gt:
-            params["due_date_gt"] = str(convert_to_timestamp(due_date_gt))
+            for prefix, (gt, lt) in date_filters.items():
+                if gt:
+                    params[f"{prefix}_gt"] = str(convert_to_timestamp(gt))
+                if lt:
+                    params[f"{prefix}_lt"] = str(convert_to_timestamp(lt))
 
-        if due_date_lt:
-            params["due_date_lt"] = str(convert_to_timestamp(due_date_lt))
+            response = await self._request("GET", f"list/{list_id}/task", params=params)
+            tasks = [Task.model_validate(task) for task in response.get("tasks", [])]
 
-        if date_created_gt:
-            params["date_created_gt"] = str(convert_to_timestamp(date_created_gt))
+            # Determine if there are more pages and prepare next page params
+            next_page_params = None
+            if response.get("has_more"):
+                next_page_params = dict(params)
+                next_page_params["page"] = page + 1
+                next_page_params["list_id"] = list_id
 
-        if date_created_lt:
-            params["date_created_lt"] = str(convert_to_timestamp(date_created_lt))
-
-        if date_updated_gt:
-            params["date_updated_gt"] = str(convert_to_timestamp(date_updated_gt))
-
-        if date_updated_lt:
-            params["date_updated_lt"] = str(convert_to_timestamp(date_updated_lt))
-
-        response = await self._request("GET", f"list/{list_id}/task", params=params)
-
-        tasks = [Task.model_validate(task) for task in response.get("tasks", [])]
-
-        # Determine if there are more pages
-        next_page_params = None
-        if len(tasks) == 100:  # ClickUp's default page size
-            next_page_params = dict(params)
-            next_page_params["page"] = page + 1
-
-        return PaginatedResponse(tasks, self, next_page_params)
+            return PaginatedResponse(tasks, self, next_page_params)
+        finally:
+            self._current_method = None
 
     async def get_task(self, task_id: Optional[str] = None) -> Task:
         """
@@ -962,6 +1002,12 @@ class ClickUp:
         links_to: Optional[str] = None,
         check_required_custom_fields: bool = True,
         custom_fields: Optional[List[Dict[str, Any]]] = None,
+        custom_task_ids: bool = False,
+        team_id: Optional[str] = None,
+        points: Optional[float] = None,
+        group_assignees: Optional[List[str]] = None,
+        markdown_content: Optional[str] = None,
+        custom_item_id: Optional[int] = None,
     ) -> Task:
         """
         Create a new task
@@ -984,6 +1030,12 @@ class ClickUp:
             links_to: Task ID to link this task to
             check_required_custom_fields: Check if required custom fields are filled
             custom_fields: List of custom field values
+            custom_task_ids: Use custom task IDs
+            team_id: Team ID when using custom task IDs
+            points: Sprint points for the task
+            group_assignees: List of group assignee IDs
+            markdown_content: Markdown formatted description
+            custom_item_id: Custom task type ID
 
         Returns:
             The created Task object
@@ -1028,9 +1080,19 @@ class ClickUp:
                 check_required_custom_fields
             ).lower()
         if custom_fields is not None:
-            data["custom_fields"] = (
-                custom_fields  # This is handled by httpx JSON serialization
-            )
+            data["custom_fields"] = custom_fields
+        if custom_task_ids is not None:
+            data["custom_task_ids"] = str(custom_task_ids).lower()
+        if team_id is not None:
+            data["team_id"] = team_id
+        if points is not None:
+            data["points"] = str(points)
+        if group_assignees is not None:
+            data["group_assignees"] = group_assignees
+        if markdown_content is not None:
+            data["markdown_content"] = markdown_content
+        if custom_item_id is not None:
+            data["custom_item_id"] = custom_item_id
 
         response = await self._request("POST", f"list/{list_id}/task", data=data)
         return Task.model_validate(response)
@@ -1050,6 +1112,12 @@ class ClickUp:
         assignees: Optional[List[str]] = None,
         add_assignees: Optional[List[str]] = None,
         remove_assignees: Optional[List[str]] = None,
+        group_assignees: Optional[Dict[str, List[str]]] = None,
+        watchers: Optional[Dict[str, List[str]]] = None,
+        archived: Optional[bool] = None,
+        points: Optional[float] = None,
+        markdown_content: Optional[str] = None,
+        custom_item_id: Optional[int] = None,
     ) -> Task:
         """
         Update an existing task
@@ -1068,6 +1136,12 @@ class ClickUp:
             assignees: Complete list of assignee IDs (replaces existing)
             add_assignees: List of assignee IDs to add
             remove_assignees: List of assignee IDs to remove
+            group_assignees: Dict with 'add' and 'rem' lists for group assignees
+            watchers: Dict with 'add' and 'rem' lists for watchers
+            archived: Whether to archive the task
+            points: New sprint points
+            markdown_content: New markdown formatted description
+            custom_item_id: New custom task type ID
 
         Returns:
             The updated Task object
@@ -1099,6 +1173,14 @@ class ClickUp:
             data["start_date"] = str(convert_to_timestamp(start_date))
         if start_date_time is not None:
             data["start_date_time"] = str(start_date_time).lower()
+        if archived is not None:
+            data["archived"] = str(archived).lower()
+        if points is not None:
+            data["points"] = str(points)
+        if markdown_content is not None:
+            data["markdown_content"] = markdown_content
+        if custom_item_id is not None:
+            data["custom_item_id"] = custom_item_id
 
         # Handle assignees
         if assignees is not None:
@@ -1110,25 +1192,50 @@ class ClickUp:
             if remove_assignees:
                 data["assignees"]["rem"] = remove_assignees
 
+        # Handle group assignees
+        if group_assignees is not None:
+            data["group_assignees"] = group_assignees
+
+        # Handle watchers
+        if watchers is not None:
+            data["watchers"] = watchers
+
         response = await self._request("PUT", f"task/{task_id}", data=data)
         return Task.model_validate(response)
 
     async def delete_task(self, task_id: Optional[str] = None) -> bool:
-        """
-        Delete a task
+        """Delete a task.
 
         Args:
-            task_id: ID of the task to delete (uses the one set by task() if not provided)
+            task_id: ID of the task to delete. If not provided, uses the task_id from the fluent interface.
 
         Returns:
             True if successful
+
+        Raises:
+            ResourceNotFound: If the task doesn't exist
+            ValidationError: If the request data is invalid
+            ClickUpError: For other API errors
         """
         task_id = task_id or self._task_id
         if not task_id:
-            raise ValueError("Task ID must be provided")
+            raise ValueError("task_id is required")
 
-        await self._request("DELETE", f"task/{task_id}")
-        return True
+        try:
+            response = await self._client.request(
+                "DELETE",
+                f"{self.base_url.rstrip('/')}/task/{task_id}",
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return True
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise ResourceNotFound(f"Task {task_id} not found", 404, {})
+            elif e.response.status_code == 400:
+                raise ValidationError(str(e), 400, {})
+            else:
+                raise ClickUpError(str(e), e.response.status_code, {})
 
     # Comment methods
 
@@ -1158,21 +1265,25 @@ class ClickUp:
         assignee: Optional[str] = None,
         notify_all: bool = True,
     ) -> Comment:
-        """
-        Add a comment to a task
+        """Add a comment to a task.
 
         Args:
             comment_text: Text content of the comment
-            task_id: ID of the task (uses the one set by task() if not provided)
+            task_id: ID of the task. If not provided, uses the task_id from the fluent interface.
             assignee: User ID to assign the comment to
             notify_all: Whether to notify all task assignees
 
         Returns:
             The created Comment object
+
+        Raises:
+            ResourceNotFound: If the task doesn't exist
+            ValidationError: If the request data is invalid
+            ClickUpError: For other API errors
         """
         task_id = task_id or self._task_id
         if not task_id:
-            raise ValueError("Task ID must be provided")
+            raise ValueError("task_id is required")
 
         data = {
             "comment_text": comment_text,
@@ -1183,7 +1294,12 @@ class ClickUp:
             data["assignee"] = assignee
 
         response = await self._request("POST", f"task/{task_id}/comment", data=data)
-        return Comment.model_validate(response)
+        logger.debug(f"Comment response: {response}")  # Debug log
+
+        # Handle the response format
+        comment_data = response.copy()
+        comment_data["comment_text"] = comment_text
+        return Comment.model_validate(comment_data)
 
     # Checklist methods
 
@@ -1240,71 +1356,64 @@ class ClickUp:
 
     # Time tracking methods
 
-    async def get_time_entries(
-        self,
-        workspace_id: Optional[str] = None,
-        start_date: Optional[Union[str, int, datetime]] = None,
-        end_date: Optional[Union[str, int, datetime]] = None,
-        assignee: Optional[Union[str, List[str]]] = None,
-    ) -> List[TimeEntry]:
-        """
-        Get time entries for a workspace
-
-        Args:
-            workspace_id: ID of the workspace (uses the one set by workspace() if not provided)
-            start_date: Start date filter (string, timestamp, or datetime)
-            end_date: End date filter (string, timestamp, or datetime)
-            assignee: User ID(s) to filter by
-
-        Returns:
-            List of TimeEntry objects
-        """
-        workspace_id = workspace_id or self._workspace_id
-        if not workspace_id:
-            raise ValueError("Workspace ID must be provided")
-
-        params = {}
-
-        if start_date:
-            params["start_date"] = str(convert_to_timestamp(start_date))
-
-        if end_date:
-            params["end_date"] = str(convert_to_timestamp(end_date))
-
-        if assignee:
-            if isinstance(assignee, list):
-                params["assignee"] = ",".join(assignee)
-            else:
-                params["assignee"] = assignee
-
-        response = await self._request(
-            "GET", f"team/{workspace_id}/time_entries", params=params
-        )
-        return [TimeEntry.model_validate(entry) for entry in response.get("data", [])]
-
     async def start_timer(
         self,
-        task_id: str,
+        task_id: Optional[str] = None,
         workspace_id: Optional[str] = None,
+        duration: Optional[int] = None,
     ) -> TimeEntry:
-        """
-        Start a timer for a task
+        """Start a timer for a task.
 
         Args:
-            task_id: ID of the task
-            workspace_id: ID of the workspace (uses the one set by workspace() if not provided)
+            task_id: ID of the task. If not provided, uses the task_id from the fluent interface.
+            workspace_id: ID of the workspace. If not provided, uses the workspace_id from the fluent interface.
+            duration: Duration in milliseconds (optional)
 
         Returns:
-            TimeEntry object for the started timer
-        """
-        workspace_id = workspace_id or self._workspace_id
-        if not workspace_id:
-            raise ValueError("Workspace ID must be provided")
+            The created TimeEntry object
 
+        Raises:
+            ResourceNotFound: If the task or workspace doesn't exist
+            ValidationError: If the request data is invalid
+            ClickUpError: For other API errors
+        """
+        task_id = task_id or self._task_id
+        workspace_id = workspace_id or self._workspace_id
+
+        if not task_id:
+            raise ValueError("task_id is required")
+        if not workspace_id:
+            raise ValueError("workspace_id is required")
+
+        start = int(time.time() * 1000)  # Current time in milliseconds
+        data = {
+            "tid": task_id,
+            "start": start,
+        }
+        if duration:
+            data["duration"] = duration
+
+        logger.debug(f"Starting timer with data: {data}")  # Debug log request data
         response = await self._request(
-            "POST", f"team/{workspace_id}/time_entries/start/{task_id}"
+            "POST", f"team/{workspace_id}/time_entries", data=data
         )
-        return TimeEntry.model_validate(response.get("data", {}))
+        logger.debug(
+            f"Time entry response type: {type(response)}"
+        )  # Debug log response type
+        logger.debug(
+            f"Time entry response: {json.dumps(response, indent=2)}"
+        )  # Debug log response content
+
+        # Create TimeEntry object with the required fields
+        entry = TimeEntry(
+            id=str(response) if isinstance(response, (int, str)) else None,
+            task_id=task_id,
+            start=str(start),
+            duration=str(duration) if duration else None,
+            wid=workspace_id,
+        )
+        logger.debug(f"Created TimeEntry: {entry}")  # Debug log created entry
+        return entry
 
     async def stop_timer(
         self,
@@ -1325,3 +1434,66 @@ class ClickUp:
 
         response = await self._request("POST", f"team/{workspace_id}/time_entries/stop")
         return TimeEntry.model_validate(response.get("data", {}))
+
+    async def create_task_from_template(
+        self,
+        name: str,
+        list_id: Optional[str] = None,
+        template_id: Optional[str] = None,
+    ) -> Task:
+        """
+        Create a new task using a task template
+
+        Args:
+            name: Name for the new task
+            list_id: ID of the list (uses the one set by list() if not provided)
+            template_id: ID of the template (uses the one set by template() if not provided)
+
+        Returns:
+            The created Task object
+        """
+        list_id = list_id or self._list_id
+        if not list_id:
+            raise ValueError("List ID must be provided")
+
+        template_id = template_id or self._template_id
+        if not template_id:
+            raise ValueError("Template ID must be provided")
+
+        data = {"name": name}
+        response = await self._request(
+            "POST", f"list/{list_id}/taskTemplate/{template_id}", data=data
+        )
+        return Task.model_validate(response)
+
+    async def get_task_time_in_status(
+        self,
+        task_id: str,
+        status: str,
+        start_date: Optional[Union[str, int, datetime]] = None,
+        end_date: Optional[Union[str, int, datetime]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get time spent in a specific status for a task
+
+        Args:
+            task_id: ID of the task
+            status: Status to get time for
+            start_date: Start date filter (string, timestamp, or datetime)
+            end_date: End date filter (string, timestamp, or datetime)
+
+        Returns:
+            Dictionary containing time spent in status
+        """
+        params = {"status": status}
+
+        if start_date:
+            params["start_date"] = str(convert_to_timestamp(start_date))
+
+        if end_date:
+            params["end_date"] = str(convert_to_timestamp(end_date))
+
+        response = await self._request(
+            "GET", f"task/{task_id}/time_in_status", params=params
+        )
+        return response.get("data", {})
