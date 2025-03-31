@@ -2179,7 +2179,6 @@ class ClickUp:
             data["note"] = note
 
         response = await self._request("POST", f"goal/{goal_id}/key_result", data=data)
-        print("Raw Key Result Response:", response)
 
         if "key_result" not in response:
             raise ClickUpError("Unexpected response format: missing 'key_result' key")
@@ -2199,12 +2198,7 @@ class ClickUp:
             }
         )
 
-        try:
-            return KeyResult.model_validate(key_result_data)
-        except ValidationError as e:
-            print("Key Result Data for Validation:", key_result_data)
-            print("Validation Error:", str(e))
-            raise
+        return KeyResult.model_validate(key_result_data)
 
     async def update_key_result(
         self,
@@ -2262,7 +2256,6 @@ class ClickUp:
             data["note"] = note
 
         response = await self._request("PUT", f"key_result/{key_result_id}", data=data)
-        print("Raw Key Result Response:", response)
 
         if "key_result" not in response:
             raise ClickUpError("Unexpected response format: missing 'key_result' key")
@@ -2290,12 +2283,7 @@ class ClickUp:
         if list_ids is not None:
             key_result_data["list_ids"] = list_ids
 
-        try:
-            return KeyResult.model_validate(key_result_data)
-        except ValidationError as e:
-            print("Key Result Data for Validation:", key_result_data)
-            print("Validation Error:", str(e))
-            raise
+        return KeyResult.model_validate(key_result_data)
 
     async def delete_key_result(self, key_result_id: str) -> bool:
         """

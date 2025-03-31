@@ -107,13 +107,30 @@ async def test_key_result_crud_operations(client, workspace):
 @pytest.mark.asyncio
 async def test_goal_with_multiple_key_results(client, workspace):
     """Test managing multiple key results for a single goal."""
+    print("\n=== Starting Multiple Key Results Test ===")
+    print(f"Using workspace ID: {workspace.id}")
+
     # Create a goal
-    goal = await client.create_goal(
-        name=f"Multi KR Goal {datetime.now()}",
-        due_date=datetime.now() + timedelta(days=7),
-        description="Goal with multiple key results",
-        workspace_id=workspace.id,
-    )
+    print("\nAttempting to create goal...")
+    try:
+        goal = await client.create_goal(
+            name=f"Multi KR Goal {datetime.now()}",
+            due_date=datetime.now() + timedelta(days=7),
+            description="Goal with multiple key results",
+            workspace_id=workspace.id,
+        )
+        print(f"Created goal: {goal}")
+    except Exception as e:
+        error_message = str(e).lower()
+        if (
+            "free forever plan" in error_message
+            or "100 usages" in error_message
+            or "upgrade" in error_message
+        ):
+            print("Skipping test: Goals feature is limited in free plan")
+            pytest.skip("Goals feature is limited in free plan")
+        print(f"Error creating goal: {str(e)}")
+        raise
 
     try:
         # Create multiple key results of different types
@@ -141,32 +158,116 @@ async def test_goal_with_multiple_key_results(client, workspace):
             },
         ]
 
+        print("\nCreating key results...")
         key_results = []
         for config in kr_configs:
-            kr = await client.create_key_result(goal_id=goal.id, **config)
-            key_results.append(kr)
-            await asyncio.sleep(1)  # Small delay between creations
+            print(f"\nCreating key result with config: {config}")
+            try:
+                kr = await client.create_key_result(goal_id=goal.id, **config)
+                print(f"Created key result: {kr}")
+                key_results.append(kr)
+                await asyncio.sleep(1)  # Small delay between creations
+            except Exception as e:
+                error_message = str(e).lower()
+                if (
+                    "free forever plan" in error_message
+                    or "100 usages" in error_message
+                    or "upgrade" in error_message
+                ):
+                    print("Skipping test: Goals feature is limited in free plan")
+                    pytest.skip("Goals feature is limited in free plan")
+                print(f"Error creating key result {config['name']}: {str(e)}")
+                raise
 
+        print("\nVerifying key results...")
         # Verify all key results were created with correct types
         for kr, config in zip(key_results, kr_configs):
-            assert kr.name == config["name"]
-            assert kr.type == config["type"]
-            assert kr.unit == config["unit"]
+            print(f"\nVerifying key result: {kr.name}")
+            print(f"Expected type: {config['type']}, Got type: {kr.type}")
+            print(f"Expected unit: {config['unit']}, Got unit: {kr.unit}")
+            print(f"Full key result data: {kr.model_dump_json(indent=2)}")
+            assert (
+                kr.name == config["name"]
+            ), f"Name mismatch: expected {config['name']}, got {kr.name}"
+            assert (
+                kr.type == config["type"]
+            ), f"Type mismatch: expected {config['type']}, got {kr.type}"
+            assert (
+                kr.unit == config["unit"]
+            ), f"Unit mismatch: expected {config['unit']}, got {kr.unit}"
+            print("Verification passed!")
 
+        print("\nUpdating key result progress...")
         # Update progress on all key results
         for kr in key_results:
-            updated_kr = await client.update_key_result(
-                key_result_id=kr.id,
-                steps_current=kr.steps_end // 2,  # Set to 50% progress
-            )
-            assert updated_kr.steps_current == kr.steps_end // 2
-            await asyncio.sleep(1)  # Small delay between updates
+            print(f"\nUpdating progress for key result: {kr.name}")
+            expected_progress = kr.steps_end // 2
+            print(f"Setting progress to: {expected_progress}")
+            try:
+                updated_kr = await client.update_key_result(
+                    key_result_id=kr.id,
+                    steps_current=expected_progress,
+                )
+                print(f"Updated key result: {updated_kr}")
+                print(
+                    f"Full updated key result data: {updated_kr.model_dump_json(indent=2)}"
+                )
+                assert (
+                    updated_kr.steps_current == expected_progress
+                ), f"Progress mismatch: expected {expected_progress}, got {updated_kr.steps_current}"
+                await asyncio.sleep(1)  # Small delay between updates
+            except Exception as e:
+                error_message = str(e).lower()
+                if (
+                    "free forever plan" in error_message
+                    or "100 usages" in error_message
+                    or "upgrade" in error_message
+                ):
+                    print("Skipping test: Goals feature is limited in free plan")
+                    pytest.skip("Goals feature is limited in free plan")
+                print(f"Error updating key result {kr.name}: {str(e)}")
+                raise
 
+        print("\nDeleting key results...")
         # Delete all key results
         for kr in key_results:
-            assert await client.delete_key_result(kr.id)
-            await asyncio.sleep(1)  # Small delay between deletions
+            print(f"\nDeleting key result: {kr.name}")
+            try:
+                result = await client.delete_key_result(kr.id)
+                print(f"Deletion result: {result}")
+                assert result, f"Failed to delete key result {kr.name}"
+                print("Deletion successful!")
+                await asyncio.sleep(1)  # Small delay between deletions
+            except Exception as e:
+                error_message = str(e).lower()
+                if (
+                    "free forever plan" in error_message
+                    or "100 usages" in error_message
+                    or "upgrade" in error_message
+                ):
+                    print("Skipping test: Goals feature is limited in free plan")
+                    pytest.skip("Goals feature is limited in free plan")
+                print(f"Error deleting key result {kr.name}: {str(e)}")
+                raise
 
+    except Exception as e:
+        print(f"\nTest failed with error: {str(e)}")
+        raise
     finally:
-        # Clean up by deleting the goal
-        await client.delete_goal(goal.id)
+        print("\nCleaning up goal...")
+        try:
+            # Clean up by deleting the goal
+            if "goal" in locals():
+                await client.delete_goal(goal.id)
+                print("Goal deleted successfully!")
+        except Exception as e:
+            error_message = str(e).lower()
+            if (
+                "free forever plan" in error_message
+                or "100 usages" in error_message
+                or "upgrade" in error_message
+            ):
+                print("Skipping cleanup: Goals feature is limited in free plan")
+            else:
+                print(f"Error deleting goal: {str(e)}")
+        print("\n=== Test Completed ===")
