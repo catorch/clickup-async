@@ -6,9 +6,9 @@ This module contains Pydantic models for the ClickUp API.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import IntEnum
-from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar, Union
+from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -98,9 +98,22 @@ class PriorityObject(BaseModel):
     """Represents a priority object as returned by the API"""
 
     id: Optional[int] = None
-    priority: Optional[int] = None
+    priority: Optional[Union[int, str]] = None  # Allow both integer and string
     color: Optional[str] = None
     orderindex: Optional[str] = None
+
+    def model_post_init(self, __context: Any) -> None:
+        """Convert string priority to integer if needed"""
+        if isinstance(self.priority, str):
+            priority_map = {
+                "urgent": 1,
+                "high": 2,
+                "normal": 3,
+                "low": 4,
+            }
+            self.priority = priority_map.get(
+                self.priority.lower(), 3
+            )  # Default to normal
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -333,17 +346,33 @@ class CommentText(BaseModel):
 class Comment(BaseModel):
     """Represents a comment on a task or list"""
 
-    id: str
-    comment: Optional[List[CommentText]] = None
+    id: Union[str, int]  # Allow both string and integer IDs
+    comment: Optional[Union[List[CommentText], str]] = None
     comment_text: Optional[str] = None
     user: Optional[User] = None
     resolved: Optional[bool] = None
     assignee: Optional[User] = None
     assigned_by: Optional[User] = None
     reactions: Optional[List[Dict[str, Any]]] = None
-    date: Optional[str] = None
+    date: Optional[Union[str, int]] = None  # Allow both string and integer dates
 
     model_config = ConfigDict(populate_by_name=True)
+
+    def model_post_init(self, __context: Any) -> None:
+        """Convert integer ID and date to strings"""
+        if isinstance(self.id, int):
+            self.id = str(self.id)
+        if isinstance(self.date, int):
+            self.date = str(self.date)
+        # Handle comment text from API response
+        if isinstance(self.comment, list) and self.comment:
+            self.comment_text = " ".join(
+                item.text for item in self.comment if isinstance(item, CommentText)
+            )
+        elif isinstance(self.comment, str):
+            self.comment_text = self.comment
+        elif isinstance(self.comment_text, str):
+            self.comment = self.comment_text
 
     @property
     def text(self) -> str:
@@ -354,15 +383,17 @@ class Comment(BaseModel):
             return " ".join(
                 item.text for item in self.comment if isinstance(item, CommentText)
             )
+        elif isinstance(self.comment, str):
+            return self.comment
         return ""
 
 
 class Task(BaseModel):
-    """Represents a task in ClickUp"""
+    """A ClickUp task"""
 
     id: str
     name: str
-    description: Optional[str] = ""
+    description: Optional[str] = None
     status: Optional[Status] = None
     orderindex: Optional[str] = None
     date_created: Optional[str] = None
@@ -370,26 +401,59 @@ class Task(BaseModel):
     date_closed: Optional[str] = None
     date_done: Optional[str] = None
     creator: Optional[User] = None
-    assignees: List[User] = Field(default_factory=make_list_factory(User))
-    checklists: List[Checklist] = Field(default_factory=make_list_factory(Checklist))
-    tags: List[str] = Field(default_factory=make_list_factory(str))
+    assignees: List[User] = []
+    checklists: List[Any] = []
+    tags: List[str] = []
     parent: Optional[str] = None
     priority: Optional[PriorityObject] = None
     due_date: Optional[str] = None
     start_date: Optional[str] = None
     time_estimate: Optional[str] = None
-    time_spent: Optional[str] = None
-    custom_fields: List[CustomField] = Field(
-        default_factory=make_list_factory(CustomField)
-    )
+    time_spent: Optional[Union[str, int]] = None  # Allow both string and integer
+    custom_fields: List[Any] = []
     list: Optional[Location] = None
     folder: Optional[Location] = None
     space: Optional[Location] = None
     url: Optional[str] = None
-    attachments: Optional[List[Attachment]] = None
+    attachments: Optional[List[Any]] = None
     custom_id: Optional[str] = None
     text_content: Optional[str] = None
-    archived: Optional[bool] = None
+    archived: bool = False
+    markdown_content: Optional[str] = None
+    points: Optional[float] = None
+    group_assignees: Optional[List[str]] = None
+    watchers: Optional[List[Union[str, Dict[str, Any]]]] = (
+        None  # Allow both string and user object
+    )
+    links_to: Optional[str] = None
+    custom_item_id: Optional[int] = None
+    custom_task_ids: bool = False
+    team_id: Optional[str] = None
+
+    @property
+    def priority_value(self) -> Optional[Priority]:
+        """Get the priority as an enum value"""
+        if not self.priority:
+            return None
+        try:
+            if isinstance(self.priority.priority, str):
+                return Priority(int(self.priority.priority))
+            return Priority(self.priority.priority)
+        except (ValueError, TypeError):
+            return None
+
+    def model_post_init(self, __context: Any) -> None:
+        """Post initialization hook to ensure status is properly set"""
+        if isinstance(self.status, dict):
+            self.status = Status.model_validate(self.status)
+        # Convert time_spent to string if it's an integer
+        if isinstance(self.time_spent, int):
+            self.time_spent = str(self.time_spent)
+        # Convert watchers to list of strings if they're user objects
+        if self.watchers and isinstance(self.watchers[0], dict):
+            self.watchers = [
+                str(w.get("id", "")) for w in self.watchers if isinstance(w, dict)
+            ]
 
     # Computed properties
     @property
@@ -407,82 +471,200 @@ class Task(BaseModel):
         )
 
     @property
-    def priority_value(self) -> Optional[Priority]:
-        """Get the priority as an enum value (if available)"""
-        if self.priority and self.priority.priority is not None:
-            try:
-                return Priority(self.priority.priority)
-            except ValueError:
-                return None
-        return None
+    def created_at(self) -> Optional[datetime]:
+        """Get the creation date as a datetime object (if available)"""
+        return (
+            datetime.fromtimestamp(
+                int(self.date_created) / 1000, tz=timezone.utc
+            ).replace(tzinfo=None)
+            if self.date_created
+            else None
+        )
+
+    @property
+    def updated_at(self) -> Optional[datetime]:
+        """Get the last update date as a datetime object (if available)"""
+        return (
+            datetime.fromtimestamp(
+                int(self.date_updated) / 1000, tz=timezone.utc
+            ).replace(tzinfo=None)
+            if self.date_updated
+            else None
+        )
+
+    @property
+    def closed_at(self) -> Optional[datetime]:
+        """Get the closing date as a datetime object (if available)"""
+        return (
+            datetime.fromtimestamp(
+                int(self.date_closed) / 1000, tz=timezone.utc
+            ).replace(tzinfo=None)
+            if self.date_closed
+            else None
+        )
+
+    @property
+    def done_at(self) -> Optional[datetime]:
+        """Get the completion date as a datetime object (if available)"""
+        return (
+            datetime.fromtimestamp(int(self.date_done) / 1000, tz=timezone.utc).replace(
+                tzinfo=None
+            )
+            if self.date_done
+            else None
+        )
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class TimeEntry(BaseModel):
-    """Represents a time tracking entry"""
+    """Model representing a time entry."""
 
-    id: str
-    task: Optional[Task] = None
-    wid: str
-    user: Optional[User] = None
-    billable: Optional[bool] = False
-    start: Optional[str] = None
-    end: Optional[str] = None
-    duration: Optional[int] = None
+    id: Optional[Union[str, int]] = None
+    wid: Optional[Union[str, int]] = None
+    task_id: Optional[Union[str, int]] = None
+    start: Optional[Union[str, int]] = None
+    end: Optional[Union[str, int]] = None
+    duration: Optional[str] = None
+    billable: Optional[bool] = None
     description: Optional[str] = None
     tags: Optional[List[str]] = None
     source: Optional[str] = None
     at: Optional[str] = None
+    user: Optional[Dict[str, Any]] = None
+    project: Optional[Dict[str, Any]] = None
+    task: Optional[Dict[str, Any]] = None
+    location: Optional[Dict[str, Any]] = None
 
-    # Computed properties
+    def model_post_init(self, __context: Any) -> None:
+        """Convert integer IDs and timestamps to strings."""
+        if isinstance(self.id, int):
+            self.id = str(self.id)
+        if isinstance(self.wid, int):
+            self.wid = str(self.wid)
+        if isinstance(self.task_id, int):
+            self.task_id = str(self.task_id)
+        if isinstance(self.start, int):
+            self.start = str(self.start)
+        if isinstance(self.end, int):
+            self.end = str(self.end)
+        if isinstance(self.duration, int):
+            self.duration = str(self.duration)
+        # Extract task_id from task if available
+        if self.task and isinstance(self.task, dict) and "id" in self.task:
+            self.task_id = str(self.task["id"])
+
     @property
     def start_datetime(self) -> Optional[datetime]:
-        """Get the start time as a datetime object (if available)"""
-        return datetime.fromtimestamp(int(self.start) / 1000) if self.start else None
+        """Convert start timestamp to datetime."""
+        if not self.start:
+            return None
+        try:
+            return datetime.fromtimestamp(int(self.start) / 1000)
+        except (ValueError, TypeError):
+            return None
 
     @property
     def end_datetime(self) -> Optional[datetime]:
-        """Get the end time as a datetime object (if available)"""
-        return datetime.fromtimestamp(int(self.end) / 1000) if self.end else None
+        """Convert end timestamp to datetime."""
+        if not self.end:
+            return None
+        try:
+            return datetime.fromtimestamp(int(self.end) / 1000)
+        except (ValueError, TypeError):
+            return None
+
+    @classmethod
+    def from_timestamp(cls, timestamp: int, **kwargs: Any) -> "TimeEntry":
+        """Create a TimeEntry from a timestamp."""
+        return cls(start=str(timestamp), **kwargs)
 
     model_config = ConfigDict(populate_by_name=True)
 
 
-class PaginatedResponse(Generic[T]):
-    """Generic container for paginated API responses"""
+class TimeInStatus(BaseModel):
+    """Represents time spent in a status for a task"""
+
+    status: str
+    time_in_status: int  # Time in milliseconds
+    total_time: int  # Total time in milliseconds
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class TaskTimeInStatus(BaseModel):
+    """Represents time in status information for a task"""
+
+    task_id: str
+    times: List[TimeInStatus] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class BulkTimeInStatus(BaseModel):
+    """Represents time in status information for multiple tasks"""
+
+    tasks: List[TaskTimeInStatus] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PaginatedResponse(Sequence[T]):
+    """A paginated response that acts like a sequence but can fetch more pages."""
 
     def __init__(
         self,
-        items: Sequence[T],
+        items: List[T],
         client: Any,
         next_page_params: Optional[Dict[str, Any]] = None,
     ):
-        self.items: Sequence[T] = items
+        """Initialize the paginated response.
+
+        Args:
+            items: The items in the current page
+            client: The ClickUp client instance
+            next_page_params: Parameters for fetching the next page
+        """
+        self._items = items
         self._client = client
         self._next_page_params = next_page_params
-        self._has_more = next_page_params is not None
-
-    def __iter__(self):
-        yield from self.items
 
     def __len__(self) -> int:
-        return len(self.items)
+        return len(self._items)
 
     def __getitem__(self, index: int) -> T:
-        return self.items[index]
+        return self._items[index]
 
     @property
     def has_more(self) -> bool:
-        """Check if there are more pages available"""
-        return self._has_more
+        """Whether there are more pages available."""
+        return self._next_page_params is not None
 
     async def next_page(self) -> Optional["PaginatedResponse[T]"]:
         """Retrieve the next page of results if available"""
-        if not self._has_more or not self._next_page_params:
+        if not self.has_more or not self._next_page_params:
             return None
 
-        # We need to recreate the API call with updated page parameter
-        # The actual implementation depends on which endpoint was originally called
-        # This is handled internally by the client
-        return None  # This will be implemented in the client class
+        # Get the list_id from the parameters
+        list_id = self._next_page_params.get("list_id")
+        if not list_id:
+            return None
+
+        # Make the request using the same endpoint
+        response = await self._client._request(
+            "GET",
+            f"list/{list_id}/task",
+            params=self._next_page_params,
+        )
+
+        # Create a new paginated response
+        items = [
+            cast(T, self._items[0].__class__.model_validate(item))
+            for item in response.get("tasks", [])
+        ]
+        next_page_params = None
+        if response.get("has_more"):
+            next_page_params = dict(self._next_page_params)
+            next_page_params["page"] = self._next_page_params["page"] + 1
+
+        return PaginatedResponse(items, self._client, next_page_params)
