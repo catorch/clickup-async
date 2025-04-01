@@ -15,7 +15,7 @@ async def test_goal_crud_operations(client, workspace):
     due_date = datetime.now() + timedelta(days=7)
     description = "Test goal description"
 
-    created_goal = await client.create_goal(
+    created_goal = await client.goals.create(
         name=name,
         due_date=due_date,
         description=description,
@@ -26,35 +26,35 @@ async def test_goal_crud_operations(client, workspace):
     assert created_goal.description == description
 
     # Get the goal and verify
-    retrieved_goal = await client.get_goal(created_goal.id)
+    retrieved_goal = await client.goals.get(created_goal.id)
     assert retrieved_goal.id == created_goal.id
     assert retrieved_goal.name == name
 
     # Update the goal
     new_name = f"Updated Goal {datetime.now()}"
-    updated_goal = await client.update_goal(
+    updated_goal = await client.goals.update(
         goal_id=created_goal.id,
         name=new_name,
     )
     assert updated_goal.name == new_name
 
     # Get all goals and verify our goal is there
-    goals = await client.get_goals(workspace_id=workspace.id)
+    goals = await client.goals.get_all(workspace_id=workspace.id)
     assert any(goal.id == created_goal.id for goal in goals)
 
     # Delete the goal
-    assert await client.delete_goal(created_goal.id)
+    assert await client.goals.delete(created_goal.id)
 
     # Verify deletion
     with pytest.raises(ResourceNotFound):
-        await client.get_goal(created_goal.id)
+        await client.goals.get(created_goal.id)
 
 
 @pytest.mark.asyncio
 async def test_key_result_crud_operations(client, workspace):
     """Test creating, reading, updating, and deleting key results."""
     # First create a goal to add key results to
-    goal = await client.create_goal(
+    goal = await client.goals.create(
         name=f"Test Goal for KR {datetime.now()}",
         due_date=datetime.now() + timedelta(days=7),
         description="Test goal for key results",
@@ -69,7 +69,7 @@ async def test_key_result_crud_operations(client, workspace):
         steps_end = 100
         unit = "points"
 
-        created_kr = await client.create_key_result(
+        created_kr = await client.goals.create_key_result(
             goal_id=goal.id,
             name=name,
             type=kr_type,
@@ -86,22 +86,22 @@ async def test_key_result_crud_operations(client, workspace):
 
         # Update the key result
         new_steps_current = 50
-        updated_kr = await client.update_key_result(
+        updated_kr = await client.goals.update_key_result(
             key_result_id=created_kr.id,
             steps_current=new_steps_current,
         )
         assert updated_kr.steps_current == new_steps_current
 
         # Delete the key result
-        assert await client.delete_key_result(created_kr.id)
+        assert await client.goals.delete_key_result(created_kr.id)
 
         # Verify the goal still exists after key result deletion
-        goal_after = await client.get_goal(goal.id)
+        goal_after = await client.goals.get(goal.id)
         assert goal_after.id == goal.id
 
     finally:
         # Clean up by deleting the goal
-        await client.delete_goal(goal.id)
+        await client.goals.delete(goal.id)
 
 
 @pytest.mark.asyncio
@@ -113,7 +113,7 @@ async def test_goal_with_multiple_key_results(client, workspace):
     # Create a goal
     print("\nAttempting to create goal...")
     try:
-        goal = await client.create_goal(
+        goal = await client.goals.create(
             name=f"Multi KR Goal {datetime.now()}",
             due_date=datetime.now() + timedelta(days=7),
             description="Goal with multiple key results",
@@ -163,7 +163,7 @@ async def test_goal_with_multiple_key_results(client, workspace):
         for config in kr_configs:
             print(f"\nCreating key result with config: {config}")
             try:
-                kr = await client.create_key_result(goal_id=goal.id, **config)
+                kr = await client.goals.create_key_result(goal_id=goal.id, **config)
                 print(f"Created key result: {kr}")
                 key_results.append(kr)
                 await asyncio.sleep(1)  # Small delay between creations
@@ -204,7 +204,7 @@ async def test_goal_with_multiple_key_results(client, workspace):
             expected_progress = kr.steps_end // 2
             print(f"Setting progress to: {expected_progress}")
             try:
-                updated_kr = await client.update_key_result(
+                updated_kr = await client.goals.update_key_result(
                     key_result_id=kr.id,
                     steps_current=expected_progress,
                 )
@@ -233,7 +233,7 @@ async def test_goal_with_multiple_key_results(client, workspace):
         for kr in key_results:
             print(f"\nDeleting key result: {kr.name}")
             try:
-                result = await client.delete_key_result(kr.id)
+                result = await client.goals.delete_key_result(kr.id)
                 print(f"Deletion result: {result}")
                 assert result, f"Failed to delete key result {kr.name}"
                 print("Deletion successful!")
@@ -258,7 +258,7 @@ async def test_goal_with_multiple_key_results(client, workspace):
         try:
             # Clean up by deleting the goal
             if "goal" in locals():
-                await client.delete_goal(goal.id)
+                await client.goals.delete(goal.id)
                 print("Goal deleted successfully!")
         except Exception as e:
             error_message = str(e).lower()

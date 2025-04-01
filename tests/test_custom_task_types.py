@@ -8,7 +8,7 @@ from src.models import CustomItem
 @pytest.mark.asyncio
 async def test_get_custom_task_types(client, workspace):
     """Test getting custom task types from a workspace."""
-    custom_items = await client.get_custom_task_types(workspace.id)
+    custom_items = await client.workspaces.get_custom_task_types(workspace.id)
 
     # Verify we got a list of CustomItem objects
     assert isinstance(custom_items, list)
@@ -29,7 +29,9 @@ async def test_get_custom_task_types(client, workspace):
 @pytest.mark.asyncio
 async def test_custom_task_types_fluent_interface(client, workspace):
     """Test getting custom task types using the fluent interface."""
-    custom_items = await client.workspace(workspace.id).get_custom_task_types()
+    custom_items = await client.workspaces.get_custom_task_types(
+        workspace_id=workspace.id
+    )
 
     # Verify we got a list of CustomItem objects
     assert isinstance(custom_items, list)
@@ -55,4 +57,4 @@ async def test_custom_task_types_no_workspace_id(client):
     test_client._workspace_id = None  # Explicitly set to None
 
     with pytest.raises(ValueError, match="Workspace ID must be provided"):
-        await test_client.get_custom_task_types()
+        await test_client.workspaces.get_custom_task_types()

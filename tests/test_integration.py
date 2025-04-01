@@ -63,13 +63,13 @@ async def client():
 async def test_workspace_operations(client):
     """Test workspace-related operations."""
     # Get workspace details
-    workspace = await client.get_workspace(WORKSPACE_ID)
+    workspace = await client.workspaces.get_workspace(WORKSPACE_ID)
     assert workspace is not None
     assert workspace.id == WORKSPACE_ID
     assert workspace.name is not None
 
     # Get all workspaces
-    workspaces = await client.get_workspaces()
+    workspaces = await client.workspaces.get_workspaces()
     assert len(workspaces) > 0
     assert any(w.id == WORKSPACE_ID for w in workspaces)
 
@@ -78,13 +78,13 @@ async def test_workspace_operations(client):
 async def test_space_operations(client):
     """Test space-related operations."""
     # Get space details
-    space = await client.get_space(SPACE_ID)
+    space = await client.spaces.get_space(SPACE_ID)
     assert space is not None
     assert space.id == SPACE_ID
     assert space.name is not None
 
     # Get all spaces in workspace
-    spaces = await client.get_spaces(WORKSPACE_ID)
+    spaces = await client.spaces.get_spaces(WORKSPACE_ID)
     assert len(spaces) > 0
     assert any(s.id == SPACE_ID for s in spaces)
 
@@ -93,31 +93,31 @@ async def test_space_operations(client):
 async def test_list_operations(client):
     """Test list-related operations."""
     # Get list details
-    task_list = await client.get_list(LIST_ID)
+    task_list = await client.lists.get(LIST_ID)
     assert task_list is not None
     assert task_list.id == LIST_ID
     assert task_list.name is not None
 
     # Get all lists in space
-    lists = await client.get_lists(space_id=SPACE_ID)
+    lists = await client.lists.get_all(space_id=SPACE_ID)
     assert len(lists) > 0
     assert any(l.id == LIST_ID for l in lists)
 
     # Test markdown support
-    list_with_markdown = await client.get_list_with_markdown(LIST_ID)
+    list_with_markdown = await client.lists.get_with_markdown(LIST_ID)
     assert list_with_markdown is not None
     assert list_with_markdown.id == LIST_ID
     assert hasattr(list_with_markdown, "content")
 
     # Create a test task for multiple list operations
-    task = await client.create_task(
+    task = await client.tasks.create(
         name=f"Multiple List Test Task {datetime.now().isoformat()}",
         list_id=LIST_ID,
         description="Test task for multiple list operations",
     )
 
     # Create another list to test multiple list operations
-    another_list = await client.create_list(
+    another_list = await client.lists.create(
         name=f"Another Test List {datetime.now().isoformat()}",
         space_id=SPACE_ID,
     )
@@ -125,11 +125,15 @@ async def test_list_operations(client):
     try:
         # Test adding task to another list
         try:
-            result = await client.add_task_to_list(task.id, another_list.id)
+            result = await client.lists.add_task(
+                task_id=task.id, list_id=another_list.id
+            )
             assert result is True
 
             # Test removing task from the additional list
-            result = await client.remove_task_from_list(task.id, another_list.id)
+            result = await client.lists.remove_task(
+                task_id=task.id, list_id=another_list.id
+            )
             assert result is True
         except ValidationError as e:
             if "Tasks in multiple lists limit exceeded" in str(e):
@@ -137,8 +141,8 @@ async def test_list_operations(client):
             raise
     finally:
         # Clean up
-        await client.delete_task(task.id)
-        await client.delete_list(another_list.id)
+        await client.tasks.delete(task.id)
+        await client.lists.delete(another_list.id)
 
 
 @pytest.mark.skip(reason="Requires a valid template ID to run")
@@ -156,7 +160,7 @@ async def test_list_template_operations(client):
     list_name = f"Template List {datetime.now().isoformat()}"
 
     # Create list from template in space
-    list_from_template = await client.create_list_from_template(
+    list_from_template = await client.lists.create_from_template(
         name=list_name,
         space_id=SPACE_ID,
         template_id=template_id,
@@ -175,7 +179,7 @@ async def test_list_template_operations(client):
     )
 
     # Clean up
-    await client.delete_list(list_from_template.id)
+    await client.lists.delete(list_from_template.id)
 
 
 @pytest.mark.asyncio
@@ -183,7 +187,7 @@ async def test_task_operations(client):
     """Test task-related operations."""
     # Create a test task
     task_name = f"Integration Test Task {datetime.now().isoformat()}"
-    task = await client.create_task(
+    task = await client.tasks.create(
         name=task_name,
         list_id=LIST_ID,
         description="This is a test task created by integration tests",
@@ -196,14 +200,14 @@ async def test_task_operations(client):
     assert task.priority_value == Priority.NORMAL
 
     # Get task details
-    task_details = await client.get_task(task.id)
+    task_details = await client.tasks.get(task.id)
     assert task_details is not None
     assert task_details.id == task.id
     assert task_details.name == task_name
 
     # Update task
     updated_name = f"Updated Integration Test Task {datetime.now().isoformat()}"
-    updated_task = await client.update_task(
+    updated_task = await client.tasks.update(
         task_id=task.id,
         name=updated_name,
         description="Updated test task description",
@@ -216,12 +220,13 @@ async def test_task_operations(client):
     assert updated_task.priority_value == Priority.HIGH
 
     # Get tasks from list
-    tasks = await client.get_tasks(list_id=LIST_ID)
+    tasks_response = await client.tasks.get_all(list_id=LIST_ID)
+    tasks = tasks_response.items  # Assuming PaginatedResponse has items attribute
     assert len(tasks) > 0
     assert any(t.id == task.id for t in tasks)
 
     # Delete task
-    result = await client.delete_task(task.id)
+    result = await client.tasks.delete(task.id)
     assert result is True
 
 
@@ -231,7 +236,7 @@ async def test_task_pagination(client):
     # Create multiple test tasks
     task_ids = []
     for i in range(5):
-        task = await client.create_task(
+        task = await client.tasks.create(
             name=f"Pagination Test Task {i} {datetime.now().isoformat()}",
             list_id=LIST_ID,
             description=f"Test task {i} for pagination testing",
@@ -239,24 +244,25 @@ async def test_task_pagination(client):
         task_ids.append(task.id)
 
     # Get first page of tasks
-    tasks = await client.get_tasks(
+    tasks_response = await client.tasks.get_all(
         list_id=LIST_ID,
         page=0,
         order_by="created",
         reverse=True,
     )
+    tasks = tasks_response.items  # Assuming PaginatedResponse has items attribute
     assert len(tasks) > 0
 
     # Clean up test tasks
     for task_id in task_ids:
-        await client.delete_task(task_id)
+        await client.tasks.delete(task_id)
 
 
 @pytest.mark.asyncio
 async def test_task_filtering(client):
     """Test task filtering functionality."""
     # Create a test task with specific properties
-    task = await client.create_task(
+    task = await client.tasks.create(
         name=f"Filter Test Task {datetime.now().isoformat()}",
         list_id=LIST_ID,
         description="Test task for filtering",
@@ -265,56 +271,57 @@ async def test_task_filtering(client):
     )
 
     # Test various filters
-    high_priority_tasks = await client.get_tasks(
+    high_priority_tasks_response = await client.tasks.get_all(
         list_id=LIST_ID,
         priority=Priority.HIGH,
     )
+    high_priority_tasks = high_priority_tasks_response.items  # Assuming items attribute
     assert any(t.id == task.id for t in high_priority_tasks)
 
     # Clean up
-    await client.delete_task(task.id)
+    await client.tasks.delete(task.id)
 
 
 @pytest.mark.asyncio
 async def test_task_comments(client):
     """Test task comment operations."""
     # Create a test task
-    task = await client.create_task(
+    task = await client.tasks.create(
         name=f"Comment Test Task {datetime.now().isoformat()}",
         list_id=LIST_ID,
         description="Test task for comments",
     )
 
     # Add a comment
-    comment = await client.create_task_comment(
+    comment = await client.comments.create_task_comment(
         task_id=task.id,
         comment_text="This is a test comment",
         notify_all=False,
     )
     assert comment is not None
-    assert comment.text == "This is a test comment"
+    assert comment.content == "This is a test comment"  # Check content attribute
 
     # Get comments
-    comments = await client.get_task_comments(task.id)
+    comments = await client.comments.get_task_comments(task.id)
     assert len(comments) > 0
     assert any(c.id == comment.id for c in comments)
 
     # Clean up
-    await client.delete_task(task.id)
+    await client.tasks.delete(task.id)
 
 
 @pytest.mark.asyncio
 async def test_task_time_tracking(client):
     """Test time tracking operations."""
     # Create a test task
-    task = await client.create_task(
+    task = await client.tasks.create(
         name=f"Time Tracking Test Task {datetime.now().isoformat()}",
         list_id=LIST_ID,
         description="Test task for time tracking",
     )
 
     # Start timer with a 1-hour duration
-    time_entry = await client.start_timer(
+    time_entry = await client.time.start_timer(
         task_id=task.id,
         workspace_id=WORKSPACE_ID,
         duration=3600000,  # 1 hour in milliseconds
@@ -323,14 +330,14 @@ async def test_task_time_tracking(client):
     assert time_entry.task_id == task.id
 
     # Clean up
-    await client.delete_task(task.id)
+    await client.tasks.delete(task.id)
 
 
 @pytest.mark.asyncio
 async def test_task_attachments(client):
     """Test task attachment operations."""
     # Create a test task
-    task = await client.create_task(
+    task = await client.tasks.create(
         name=f"Attachment Test Task {datetime.now().isoformat()}",
         list_id=LIST_ID,
         description="Test task for attachments",
@@ -344,7 +351,7 @@ async def test_task_attachments(client):
             f.write(test_content)
 
         # Test uploading file by path
-        attachment = await client.create_task_attachment(
+        attachment = await client.tasks.create_attachment(
             task_id=task.id,
             file_path=test_file_path,
         )
@@ -354,7 +361,7 @@ async def test_task_attachments(client):
         assert attachment["title"] == "test_attachment.txt"
 
         # Test uploading file with raw data
-        attachment2 = await client.create_task_attachment(
+        attachment2 = await client.tasks.create_attachment(
             task_id=task.id,
             file_data=b"Another test attachment",
             file_name="test_attachment2.txt",
@@ -368,12 +375,12 @@ async def test_task_attachments(client):
         with pytest.raises(
             ValueError, match="Either file_path or file_data must be provided"
         ):
-            await client.create_task_attachment(task_id=task.id)
+            await client.tasks.create_attachment(task_id=task.id)
 
         with pytest.raises(
             ValueError, match="Cannot provide both file_path and file_data"
         ):
-            await client.create_task_attachment(
+            await client.tasks.create_attachment(
                 task_id=task.id,
                 file_path=test_file_path,
                 file_data=b"test",
@@ -382,13 +389,13 @@ async def test_task_attachments(client):
         with pytest.raises(
             ValueError, match="file_name is required when using file_data"
         ):
-            await client.create_task_attachment(
+            await client.tasks.create_attachment(
                 task_id=task.id,
                 file_data=b"test",
             )
 
         with pytest.raises(ValueError, match="File not found"):
-            await client.create_task_attachment(
+            await client.tasks.create_attachment(
                 task_id=task.id,
                 file_path="nonexistent_file.txt",
             )
@@ -397,4 +404,4 @@ async def test_task_attachments(client):
         # Clean up
         if os.path.exists(test_file_path):
             os.remove(test_file_path)
-        await client.delete_task(task.id)
+        await client.tasks.delete(task.id)

@@ -49,7 +49,7 @@ async def client() -> AsyncGenerator[ClickUp, None]:
 @pytest_asyncio.fixture(scope="session")
 async def workspace(client: ClickUp) -> AsyncGenerator[Workspace, None]:
     """Get the first workspace for testing."""
-    workspaces = await client.get_workspaces()
+    workspaces = await client.workspaces.get_workspaces()
     assert workspaces, "No workspaces found"
     yield workspaces[0]
 
@@ -59,7 +59,7 @@ async def test_space(
     client: ClickUp, workspace: Workspace
 ) -> AsyncGenerator[Space, None]:
     """Get an existing space for testing."""
-    spaces = await client.get_spaces(workspace.id)
+    spaces = await client.spaces.get_spaces(workspace.id)
     assert spaces, "No spaces found in workspace"
     yield spaces[0]
 
@@ -70,9 +70,9 @@ async def test_folder(
 ) -> AsyncGenerator[Folder, None]:
     """Create a test folder and clean it up after the test."""
     name = f"Test Folder {uuid.uuid4()}"
-    folder = await client.create_folder(test_space.id, name)
+    folder = await client.folders.create(name=name, space_id=test_space.id)
     yield folder
-    await client.delete_folder(folder.id)
+    await client.folders.delete(folder.id)
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -81,15 +81,15 @@ async def test_list(
 ) -> AsyncGenerator[TaskList, None]:
     """Create a test list and clean it up after the test."""
     name = f"Test List {uuid.uuid4()}"
-    task_list = await client.create_list(test_folder.id, name)
+    task_list = await client.lists.create(name=name, folder_id=test_folder.id)
     yield task_list
-    await client.delete_list(task_list.id)
+    await client.lists.delete(task_list.id)
 
 
 @pytest_asyncio.fixture(scope="function")
 async def test_task(client: ClickUp, test_list: TaskList) -> AsyncGenerator[Task, None]:
     """Create a test task and clean it up after the test."""
     name = f"Test Task {uuid.uuid4()}"
-    task = await client.create_task(test_list.id, name)
+    task = await client.tasks.create(name=name, list_id=test_list.id)
     yield task
-    await client.delete_task(task.id)
+    await client.tasks.delete(task.id)

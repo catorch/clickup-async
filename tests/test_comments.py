@@ -13,22 +13,22 @@ from src.models import Comment
 @pytest.mark.asyncio
 async def test_task_comments(client, test_space):
     """Test task comment operations."""
-    # Create a test list
-    test_list = await client.create_list(
+    # Create a test list using the resource interface
+    test_list = await client.lists.create(
         name=f"Comment Test List {datetime.now().isoformat()}",
         space_id=test_space.id,
     )
 
-    # Create a test task
-    task = await client.create_task(
+    # Create a test task using the resource interface
+    task = await client.tasks.create(
         name=f"Comment Test Task {datetime.now().isoformat()}",
         list_id=test_list.id,
         description="Test task for comments",
     )
 
     try:
-        # Create a comment
-        comment = await client.create_task_comment(
+        # Create a comment using the resource interface
+        comment = await client.comments.create_task_comment(
             task_id=task.id,
             comment_text="Test comment",
             notify_all=False,
@@ -36,13 +36,13 @@ async def test_task_comments(client, test_space):
         assert isinstance(comment, Comment)
         assert comment.content == "Test comment"
 
-        # Get comments
-        comments = await client.get_task_comments(task.id)
+        # Get comments using the resource interface
+        comments = await client.comments.get_task_comments(task.id)
         assert len(comments) > 0
         assert any(c.id == comment.id for c in comments)
 
-        # Update comment
-        updated_comment = await client.update_comment(
+        # Update comment using the resource interface
+        updated_comment = await client.comments.update(
             comment_id=comment.id,
             comment_text="Updated test comment",
             resolved=True,
@@ -51,8 +51,8 @@ async def test_task_comments(client, test_space):
         assert updated_comment.content == "Updated test comment"
         assert updated_comment.resolved is True
 
-        # Create a threaded comment
-        reply = await client.create_threaded_comment(
+        # Create a threaded comment using the resource interface
+        reply = await client.comments.create_threaded_comment(
             comment_id=comment.id,
             comment_text="Test reply",
             notify_all=False,
@@ -60,40 +60,40 @@ async def test_task_comments(client, test_space):
         assert isinstance(reply, Comment)
         assert reply.content == "Test reply"
 
-        # Get threaded comments
-        replies = await client.get_threaded_comments(comment.id)
+        # Get threaded comments using the resource interface
+        replies = await client.comments.get_threaded_comments(comment.id)
         assert len(replies) > 0
         assert any(r.id == reply.id for r in replies)
 
-        # Delete comment (this should also delete replies)
-        result = await client.delete_comment(comment.id)
+        # Delete comment using the resource interface
+        result = await client.comments.delete(comment.id)
         assert result is True
 
         # Wait for deletion to propagate
         await asyncio.sleep(5)
 
         # Verify comment is deleted
-        comments = await client.get_task_comments(task.id)
+        comments = await client.comments.get_task_comments(task.id)
         assert not any(c.id == comment.id for c in comments)
 
     finally:
-        # Clean up
-        await client.delete_task(task.id)
-        await client.delete_list(test_list.id)
+        # Clean up using resource interface
+        await client.tasks.delete(task.id)
+        await client.lists.delete(test_list.id)
 
 
 @pytest.mark.asyncio
 async def test_list_comments(client, test_space):
     """Test list comment operations."""
-    # Create a test list
-    test_list = await client.create_list(
+    # Create a test list using the resource interface
+    test_list = await client.lists.create(
         name=f"List Comment Test {datetime.now().isoformat()}",
         space_id=test_space.id,
     )
 
     try:
-        # Create a comment
-        comment = await client.create_list_comment(
+        # Create a comment using the resource interface
+        comment = await client.comments.create_list_comment(
             list_id=test_list.id,
             comment_text="Test list comment",
             notify_all=False,
@@ -101,46 +101,46 @@ async def test_list_comments(client, test_space):
         assert isinstance(comment, Comment)
         assert comment.content == "Test list comment"
 
-        # Get comments
-        comments = await client.get_list_comments(test_list.id)
+        # Get comments using the resource interface
+        comments = await client.comments.get_list_comments(test_list.id)
         assert len(comments) > 0
         assert any(c.id == comment.id for c in comments)
 
-        # Update comment
-        updated_comment = await client.update_comment(
+        # Update comment using the resource interface
+        updated_comment = await client.comments.update(
             comment_id=comment.id,
             comment_text="Updated list comment",
         )
         assert isinstance(updated_comment, Comment)
         assert updated_comment.content == "Updated list comment"
 
-        # Delete comment
-        result = await client.delete_comment(comment.id)
+        # Delete comment using the resource interface
+        result = await client.comments.delete(comment.id)
         assert result is True
 
         # Wait for deletion to propagate
         await asyncio.sleep(5)
 
         # Verify comment is deleted
-        comments = await client.get_list_comments(test_list.id)
+        comments = await client.comments.get_list_comments(test_list.id)
         assert not any(c.id == comment.id for c in comments)
 
     finally:
-        # Clean up
-        await client.delete_list(test_list.id)
+        # Clean up using resource interface
+        await client.lists.delete(test_list.id)
 
 
 @pytest.mark.asyncio
 async def test_comment_pagination(client, test_space):
     """Test comment pagination functionality."""
-    # Create a test list
-    test_list = await client.create_list(
+    # Create a test list using the resource interface
+    test_list = await client.lists.create(
         name=f"Pagination Test List {datetime.now().isoformat()}",
         space_id=test_space.id,
     )
 
-    # Create a test task
-    task = await client.create_task(
+    # Create a test task using the resource interface
+    task = await client.tasks.create(
         name=f"Pagination Test Task {datetime.now().isoformat()}",
         list_id=test_list.id,
         description="Test task for comment pagination",
@@ -150,7 +150,7 @@ async def test_comment_pagination(client, test_space):
         # Create multiple comments
         comment_ids = []
         for i in range(30):  # Create more than the default page size (25)
-            comment = await client.create_task_comment(
+            comment = await client.comments.create_task_comment(
                 task_id=task.id,
                 comment_text=f"Test comment {i}",
                 notify_all=False,
@@ -158,14 +158,14 @@ async def test_comment_pagination(client, test_space):
             comment_ids.append(comment.id)
             await asyncio.sleep(0.1)  # Small delay to ensure different timestamps
 
-        # Get first page of comments
-        first_page = await client.get_task_comments(task.id)
+        # Get first page of comments using resource interface
+        first_page = await client.comments.get_task_comments(task.id)
         assert len(first_page) == 25  # Default page size
 
         # Get next page using the timestamp of the last comment
         if first_page:
             last_comment = first_page[-1]
-            next_page = await client.get_task_comments(
+            next_page = await client.comments.get_task_comments(
                 task_id=task.id,
                 start=int(last_comment.date),
                 start_id=last_comment.id,
@@ -175,35 +175,35 @@ async def test_comment_pagination(client, test_space):
 
         # Clean up comments
         for comment_id in comment_ids:
-            await client.delete_comment(comment_id)
+            await client.comments.delete(comment_id)
             # Short sleep to prevent rate limiting
             await asyncio.sleep(0.5)
 
     finally:
-        # Clean up
-        await client.delete_task(task.id)
-        await client.delete_list(test_list.id)
+        # Clean up using resource interface
+        await client.tasks.delete(task.id)
+        await client.lists.delete(test_list.id)
 
 
 @pytest.mark.asyncio
 async def test_comment_with_assignee(client, test_space):
     """Test comment operations with assignees."""
-    # Create a test list
-    test_list = await client.create_list(
+    # Create a test list using the resource interface
+    test_list = await client.lists.create(
         name=f"Assignee Test List {datetime.now().isoformat()}",
         space_id=test_space.id,
     )
 
-    # Create a test task
-    task = await client.create_task(
+    # Create a test task using the resource interface
+    task = await client.tasks.create(
         name=f"Assignee Test Task {datetime.now().isoformat()}",
         list_id=test_list.id,
         description="Test task for comment assignees",
     )
 
     try:
-        # Get workspace members to find an assignee
-        workspaces = await client.get_workspaces()
+        # Get workspace members to find an assignee using resource interface
+        workspaces = await client.workspaces.get_workspaces()
         if not workspaces:
             pytest.skip("No workspaces found for assignee testing")
 
@@ -225,8 +225,8 @@ async def test_comment_with_assignee(client, test_space):
             # Skip if we can't find a valid assignee
             pytest.skip("Could not extract assignee ID from workspace members")
 
-        # Create a comment with assignee
-        comment = await client.create_task_comment(
+        # Create a comment with assignee using resource interface
+        comment = await client.comments.create_task_comment(
             task_id=task.id,
             comment_text="Test comment with assignee",
             assignee=str(assignee),
@@ -235,20 +235,20 @@ async def test_comment_with_assignee(client, test_space):
         await asyncio.sleep(2)
         assert comment.content == "Test comment with assignee"
 
-        # Update the comment
-        updated_comment = await client.update_comment(
+        # Update the comment using resource interface
+        updated_comment = await client.comments.update(
             comment_id=comment.id,
             comment_text="Updated comment with assignee",
         )
 
         assert updated_comment.content == "Updated comment with assignee"
 
-        # Delete the comment
-        await client.delete_comment(comment_id=comment.id)
+        # Delete the comment using resource interface
+        await client.comments.delete(comment_id=comment.id)
         # Wait for deletion to propagate
         await asyncio.sleep(5)
 
     finally:
-        # Clean up
-        await client.delete_task(task_id=task.id)
-        await client.delete_list(list_id=test_list.id)
+        # Clean up using resource interface
+        await client.tasks.delete(task_id=task.id)
+        await client.lists.delete(list_id=test_list.id)
