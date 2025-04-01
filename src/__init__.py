@@ -14,7 +14,7 @@ import logging
 from logging import NullHandler
 
 # Import main classes for convenient access
-from .clickup_client import ClickUp
+from .client import ClickUp
 from .exceptions import (
     AuthenticationError,
     ClickUpError,
