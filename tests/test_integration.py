@@ -36,6 +36,12 @@ WORKSPACE_ID = os.getenv("CLICKUP_WORKSPACE_ID")
 SPACE_ID = os.getenv("CLICKUP_SPACE_ID")
 LIST_ID = os.getenv("CLICKUP_LIST_ID")
 
+# Debug log the environment variables
+logger.debug("Environment variables loaded:")
+logger.debug(f"WORKSPACE_ID: {WORKSPACE_ID}")
+logger.debug(f"SPACE_ID: {SPACE_ID}")
+logger.debug(f"LIST_ID: {LIST_ID}")
+
 # Skip all tests if required environment variables are not set
 pytestmark = pytest.mark.skipif(
     not all([API_TOKEN, WORKSPACE_ID, SPACE_ID, LIST_ID]),
@@ -62,6 +68,12 @@ async def client():
 @pytest.mark.asyncio
 async def test_workspace_operations(client):
     """Test workspace-related operations."""
+    # Print environment variables
+    print("\nEnvironment variables:")
+    print(f"WORKSPACE_ID: {WORKSPACE_ID}")
+    print(f"SPACE_ID: {SPACE_ID}")
+    print(f"LIST_ID: {LIST_ID}")
+
     # Get workspace details
     workspace = await client.workspaces.get_workspace(WORKSPACE_ID)
     assert workspace is not None
@@ -219,15 +231,15 @@ async def test_task_operations(client):
     assert updated_task.description == "Updated test task description"
     assert updated_task.priority_value == Priority.HIGH
 
-    # Get tasks from list
+    # Get tasks from list (PaginatedResponse acts as sequence)
     tasks_response = await client.tasks.get_all(list_id=LIST_ID)
-    tasks = tasks_response.items  # Assuming PaginatedResponse has items attribute
-    assert len(tasks) > 0
-    assert any(t.id == task.id for t in tasks)
+    assert len(tasks_response) > 0
+    assert any(t.id == task.id for t in tasks_response)
 
     # Delete task
-    result = await client.tasks.delete(task.id)
-    assert result is True
+    # Successful delete should return True
+    delete_result = await client.tasks.delete(task.id)
+    assert delete_result is True
 
 
 @pytest.mark.asyncio
@@ -242,16 +254,16 @@ async def test_task_pagination(client):
             description=f"Test task {i} for pagination testing",
         )
         task_ids.append(task.id)
+        await asyncio.sleep(0.5)  # Small delay
 
-    # Get first page of tasks
+    # Get first page of tasks (PaginatedResponse acts as sequence)
     tasks_response = await client.tasks.get_all(
         list_id=LIST_ID,
         page=0,
         order_by="created",
         reverse=True,
     )
-    tasks = tasks_response.items  # Assuming PaginatedResponse has items attribute
-    assert len(tasks) > 0
+    assert len(tasks_response) > 0
 
     # Clean up test tasks
     for task_id in task_ids:
@@ -270,13 +282,12 @@ async def test_task_filtering(client):
         due_date=datetime.now() + timedelta(days=1),
     )
 
-    # Test various filters
+    # Test various filters (PaginatedResponse acts as sequence)
     high_priority_tasks_response = await client.tasks.get_all(
         list_id=LIST_ID,
         priority=Priority.HIGH,
     )
-    high_priority_tasks = high_priority_tasks_response.items  # Assuming items attribute
-    assert any(t.id == task.id for t in high_priority_tasks)
+    assert any(t.id == task.id for t in high_priority_tasks_response)
 
     # Clean up
     await client.tasks.delete(task.id)
