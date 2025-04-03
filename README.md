@@ -30,16 +30,21 @@ pip install clickup-async
 
 ```python
 import asyncio
-from clickup_async import ClickUp, Priority
+from clickup_async import ClickUp
+from clickup_async.models import Priority
 
 async def main():
     # Use as a context manager for automatic cleanup
     async with ClickUp(api_token="your_token_here") as client:
+        # Get authenticated user
+        user = await client.get_authenticated_user()
+        print(f"Authenticated as: {user.username}")
+        
         # Get all workspaces
-        workspaces = await client.get_workspaces()
+        workspaces = await client.workspaces.get_workspaces()
         
         # Create a task with fluent interface
-        task = await client.list("your_list_id").create_task(
+        task = await client.list("your_list_id").tasks.create_task(
             name="Implement new feature",
             description="Add the awesome new feature",
             priority=Priority.HIGH,
@@ -98,24 +103,32 @@ async def process_task(task: Task) -> None:
 Intuitive, chainable API design that reflects ClickUp's resource hierarchy.
 
 ```python
-# Traditional approach
-task = await client.get_task("task_id")
-comment = await client.create_task_comment(task.id, "Great work!")
+# Access resources through the fluent interface
+workspaces = await client.workspaces.get_workspaces()
+spaces = await client.workspace("workspace_id").spaces.get_spaces()
+folders = await client.space("space_id").folders.get_folders()
+lists = await client.folder("folder_id").lists.get_lists()
+tasks = await client.list("list_id").tasks.get_tasks()
 
-# Fluent approach
-task = await client.task("task_id").get_task()
-comment = await client.task("task_id").create_task_comment("Great work!")
+# Create a comment on a task
+comment = await client.task("task_id").comments.create_comment("Great work!")
+
+# Work with docs
+doc = await client.docs.create_doc(
+    title="Project Requirements", 
+    content="# Requirements\n\n...", 
+    parent={"id": "folder_id", "type": "folder"}
+)
 ```
-
-## Documentation
-
-For more detailed examples and API documentation, visit our [GitHub repository](https://github.com/catorch/clickup-async).
 
 ### Working with Tasks
 
 ```python
+from datetime import datetime, timedelta
+from clickup_async.models import Priority
+
 # Create a task
-task = await client.list("list_id").create_task(
+task = await client.list("list_id").tasks.create_task(
     name="New task",
     description="Task description with **markdown** support",
     priority=Priority.HIGH,
@@ -125,13 +138,13 @@ task = await client.list("list_id").create_task(
 )
 
 # Update a task
-updated_task = await client.task(task.id).update_task(
+updated_task = await client.task("task_id").update(
     name="Updated task name",
     status="In Progress"
 )
 
 # Get tasks with filtering
-tasks = await client.list("list_id").get_tasks(
+tasks = await client.list("list_id").tasks.get_tasks(
     due_date_gt="today",
     due_date_lt="next week",
     assignees=["user_id"],
@@ -143,7 +156,7 @@ tasks = await client.list("list_id").get_tasks(
 
 ```python
 # Get first page of tasks
-tasks_page = await client.get_tasks(list_id="list_id")
+tasks_page = await client.list("list_id").tasks.get_tasks()
 
 # Process all tasks across all pages
 all_tasks = []
