@@ -18,6 +18,7 @@ from .exceptions import (
     ResourceNotFound,
     ValidationError,
 )
+from .models import User
 from .resources.checklist import ChecklistResource
 from .resources.comment import CommentResource
 from .resources.custom_field import CustomFieldResource
@@ -41,14 +42,19 @@ class ClickUp:
 
     Usage:
         async with ClickUp(api_token) as client:
-            workspaces = await client.workspaces.get_all()
+            workspaces = await client.workspaces.get_workspaces()
+            user = await client.get_authenticated_user()
 
         # Or with the fluent interface
         async with ClickUp(api_token) as client:
             tasks = await client.workspace("workspace_id").list("list_id").tasks.get_all()
+
+        # Obtain OAuth token (static method)
+        token_info = await ClickUp.get_oauth_token(client_id, client_secret, code)
     """
 
     BASE_URL = "https://api.clickup.com/api/v2"
+    OAUTH_URL = "https://api.clickup.com/api/v2/oauth/token"
 
     def __init__(
         self,
@@ -223,6 +229,86 @@ class ClickUp:
                 raise ClickUpError(
                     f"Request failed after {self.max_retries} retries: {str(e)}"
                 )
+
+    # --- Static Method for OAuth --- #
+
+    @staticmethod
+    async def get_oauth_token(
+        client_id: str,
+        client_secret: str,
+        code: str,
+        timeout: float = 30.0,
+    ) -> Dict[str, Any]:
+        """
+        Exchange an OAuth code for an access token.
+
+        This is a static method and does not use the client's initialized api_token.
+
+        Args:
+            client_id: OAuth app client ID.
+            client_secret: OAuth app client secret.
+            code: Code received in the redirect URL after user authorization.
+            timeout: Request timeout in seconds.
+
+        Returns:
+            Dictionary containing the access token and related info.
+
+        Raises:
+            ClickUpError: For network errors or API errors during token exchange.
+            AuthenticationError: If client_id/client_secret/code are invalid.
+        """
+        url = ClickUp.OAUTH_URL
+        payload = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+        }
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()  # Raise exception for 4xx/5xx errors
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                error_data = {}
+                try:
+                    error_data = e.response.json()
+                except (ValueError, KeyError):
+                    pass
+                status_code = e.response.status_code
+                err_msg = error_data.get("err", str(e))
+
+                if status_code == 401:
+                    raise AuthenticationError(
+                        f"OAuth token exchange failed: {err_msg}",
+                        status_code,
+                        error_data,
+                    )
+                else:
+                    raise ClickUpError(
+                        f"OAuth token exchange HTTP error: {err_msg}",
+                        status_code,
+                        error_data,
+                    )
+            except httpx.RequestError as e:
+                raise ClickUpError(f"OAuth token exchange request failed: {str(e)}")
+
+    # --- User Endpoint --- #
+
+    async def get_authenticated_user(self) -> User:
+        """
+        Get details for the authenticated user.
+
+        Returns:
+            User object representing the authenticated user.
+
+        Raises:
+            AuthenticationError: If authentication fails
+            ClickUpError: For other API errors
+        """
+        response = await self._request("GET", "user")
+        # The response structure is {"user": {...user_details...}}
+        return User.model_validate(response["user"])
 
     # Fluent interface methods
 
