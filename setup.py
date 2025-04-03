@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="clickup-async",
-    version="0.1.0",
+    version="0.2.0",
     author="catorch",
     author_email="catorch@example.com",
     description="Modern async Python client for ClickUp API with type hints, rate limiting and fluent interface",
@@ -17,7 +17,6 @@ setup(
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",

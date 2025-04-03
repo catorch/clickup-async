@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clickup-async"
-version = "0.1.0"
+version = "0.2.0"
 description = "Modern async Python client for ClickUp API with type hints, rate limiting and fluent interface"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "catorch", email = "catorch@example.com"},
 ]
@@ -16,7 +16,6 @@ keywords = ["clickup", "api", "async", "python", "httpx", "asyncio", "task-manag
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -46,3 +45,7 @@ dev = [
     "ruff>=0.1.0",
     "python-dotenv>=1.0.0",
 ]
+
+# Add this section to specify the src layout
+[tool.setuptools]
+package-dir = {"" = "src"}
