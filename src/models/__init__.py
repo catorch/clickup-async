@@ -17,7 +17,18 @@ from .space import FeatureConfig, Features, Space, Status
 from .task import BulkTimeInStatus, Task, TaskTimeInStatus, TimeInStatus
 from .time import TimeEntry
 from .user import Member, User
-from .workspace import CustomItem, CustomItemAvatar, Workspace
+from .workspace import (
+    AuditLogApplicability,
+    AuditLogEntry,
+    AuditLogEventStatus,
+    AuditLogFilter,
+    AuditLogPageDirection,
+    AuditLogPagination,
+    CustomItem,
+    CustomItemAvatar,
+    GetAuditLogsRequest,
+    Workspace,
+)
 
 __all__ = [
     # Base
@@ -32,6 +43,13 @@ __all__ = [
     "CustomItem",
     "CustomItemAvatar",
     "Workspace",
+    "AuditLogApplicability",
+    "AuditLogEventStatus",
+    "AuditLogPageDirection",
+    "AuditLogFilter",
+    "AuditLogPagination",
+    "GetAuditLogsRequest",
+    "AuditLogEntry",
     # Space
     "Features",
     "FeatureConfig",

@@ -196,6 +196,3 @@ async def test_get_all_tasks_in_list(client: ClickUp, test_list: TaskList):
                 pass  # Ignore if already deleted
             except Exception as e:
                 logger.error(f"Error cleaning up task {task_id} in get_all test: {e}")
-
-
-# Add more tests below for pagination, filtering, comments, attachments, etc.
