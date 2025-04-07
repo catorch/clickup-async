@@ -18,12 +18,12 @@ class TimeEntry(BaseModel):
     task_id: Optional[Union[str, int]] = None
     start: Optional[Union[str, int]] = None
     end: Optional[Union[str, int]] = None
-    duration: Optional[str] = None
+    duration: Optional[int] = None  # API returns integer
     billable: Optional[bool] = None
     description: Optional[str] = None
-    tags: Optional[List[str]] = None
+    tags: Optional[List[Dict[str, str]]] = None  # API returns list of dicts
     source: Optional[str] = None
-    at: Optional[str] = None
+    at: Optional[int] = None  # API returns integer
     user: Optional[Dict[str, Any]] = None
     project: Optional[Dict[str, Any]] = None
     task: Optional[Dict[str, Any]] = None
@@ -41,8 +41,6 @@ class TimeEntry(BaseModel):
             self.start = str(self.start)
         if isinstance(self.end, int):
             self.end = str(self.end)
-        if isinstance(self.duration, int):
-            self.duration = str(self.duration)
         # Extract task_id from task if available
         if self.task and isinstance(self.task, dict) and "id" in self.task:
             self.task_id = str(self.task["id"])

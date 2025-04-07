@@ -9,6 +9,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Union
 
+from ..exceptions import ResourceNotFound, ValidationError
 from ..models import TimeEntry
 from .base import BaseResource
 
@@ -61,26 +62,13 @@ class TimeTrackingResource(BaseResource):
 
         logger.debug(f"Starting timer with data: {data}")  # Debug log request data
         response = await self._request(
-            "POST", f"team/{workspace_id}/time_entries", data=data
+            "POST", f"team/{workspace_id}/time_entries/start", data=data
         )
-        logger.debug(
-            f"Time entry response type: {type(response)}"
-        )  # Debug log response type
         logger.debug(
             f"Time entry response: {json.dumps(response, indent=2) if isinstance(response, dict) else response}"
         )  # Debug log response content
 
-        # Create TimeEntry object with the required fields
-        entry = TimeEntry(
-            id=str(response) if isinstance(response, (int, str)) else None,
-            task_id=task_id,
-            start=str(start),
-            duration=str(duration) if duration else None,
-            wid=workspace_id,
-        )
-
-        logger.debug(f"Created TimeEntry: {entry}")  # Debug log created entry
-        return entry
+        return TimeEntry.model_validate(response.get("data", {}))
 
     async def stop_timer(
         self,
@@ -242,8 +230,12 @@ class TimeTrackingResource(BaseResource):
         response = await self._request(
             "POST", f"team/{workspace_id}/time_entries", data=data
         )
+        logger.debug(
+            f"Time entry response: {json.dumps(response, indent=2) if isinstance(response, dict) else response}"
+        )  # Debug log response content
 
-        return TimeEntry.model_validate(response)
+        # Parse the response data
+        return TimeEntry.model_validate(response.get("data", {}))
 
     async def update_entry(
         self,
@@ -302,7 +294,19 @@ class TimeTrackingResource(BaseResource):
             "PUT", f"team/{workspace_id}/time_entries/{time_entry_id}", data=data
         )
 
-        return TimeEntry.model_validate(response)
+        # Parse the response data
+        data = response.get("data")
+        # Handle cases where API returns data as a list: {"data": [{...}]}
+        if isinstance(data, list) and data:
+            entry_data = data[0]
+        elif isinstance(data, dict):
+            entry_data = data
+        else:
+            # Raise error or handle unexpected format
+            raise ValidationError(
+                f"Unexpected response format for update_entry: {response}"
+            )
+        return TimeEntry.model_validate(entry_data)
 
     async def delete_entry(
         self,
@@ -372,7 +376,11 @@ class TimeTrackingResource(BaseResource):
         response = await self._request(
             "GET", f"team/{workspace_id}/time_entries/{time_entry_id}", params=params
         )
-        return TimeEntry.model_validate(response)
+        data = response.get("data")
+        if data is None:
+            # Entry not found (deleted or invalid ID)
+            raise ResourceNotFound(f"Time entry with ID '{time_entry_id}' not found.")
+        return TimeEntry.model_validate(data)
 
     async def get_entry_history(
         self,
@@ -437,10 +445,20 @@ class TimeTrackingResource(BaseResource):
             response = await self._request(
                 "GET", f"team/{workspace_id}/time_entries/current", params=params
             )
-            return TimeEntry.model_validate(response)
-        except Exception as e:
-            logger.debug(f"No running timer found: {e}")
+            data = response.get("data")
+            # ClickUp API returns {"data":null} when no timer is running
+            if data is None:
+                logger.debug("No running timer found (API returned null data).")
+                return None
+            # If data is present but invalid, model_validate will raise ValidationError
+            return TimeEntry.model_validate(data)
+        except ValidationError as e:
+            # Log cases where data might be present but invalid
+            logger.warning(
+                f"Validation error getting running timer: {e}. Response: {response}"
+            )
             return None
+        # Let other ClickUpErrors propagate
 
     async def remove_tags(
         self,
@@ -503,7 +521,8 @@ class TimeTrackingResource(BaseResource):
             raise ValueError("Workspace ID must be provided")
 
         response = await self._request("GET", f"team/{workspace_id}/time_entries/tags")
-        return response.get("data", [])
+        # API returns tags under the "tags" key, not "data"
+        return response.get("tags", [])
 
     async def add_tags(
         self,
