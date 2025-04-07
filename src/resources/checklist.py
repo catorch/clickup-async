@@ -57,6 +57,9 @@ class ChecklistResource(BaseResource):
         response = await self._request(
             "POST", f"task/{task_id}/checklist", data=data, params=params
         )
+        # The response from creating a checklist is actually just the checklist object,
+        # not the whole parent task or list.
+        # We need to validate the 'checklist' key from the response.
         return Checklist.model_validate(response.get("checklist", {}))
 
     async def create_item(
