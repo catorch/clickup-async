@@ -28,6 +28,7 @@ from .models import (
     Folder,
     Space,
     Status,
+    Tag,
     Task,
     TaskList,
     TimeEntry,
@@ -60,4 +61,5 @@ __all__ = [
     "Status",
     "View",
     "Webhook",
+    "Tag",
 ]

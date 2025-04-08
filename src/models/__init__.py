@@ -14,6 +14,7 @@ from .folder import Folder
 from .goal import Goal, KeyResult
 from .list import TaskList
 from .space import FeatureConfig, Features, Space, Status
+from .tag import Tag
 from .task import BulkTimeInStatus, Task, TaskTimeInStatus, TimeInStatus
 from .time import TimeEntry
 from .user import Member, User
@@ -91,4 +92,6 @@ __all__ = [
     "View",
     # Webhook
     "Webhook",
+    # Tag
+    "Tag",
 ]

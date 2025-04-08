@@ -14,7 +14,7 @@ import pytest_asyncio
 from dotenv import load_dotenv
 
 from src import ClickUp, Task
-from src.exceptions import ClickUpError, ResourceNotFound, ValidationError
+from src.exceptions import ResourceNotFound
 from src.models import PaginatedResponse, Priority, TaskList
 
 # Configure logging

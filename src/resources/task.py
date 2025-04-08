@@ -757,3 +757,73 @@ class TaskResource(BaseResource):
 
         await self._request("DELETE", f"task/{task_id}/link/{links_to}", params=params)
         return True
+
+    # --- Task Tags --- #
+
+    async def add_tag_to_task(
+        self,
+        task_id: str,
+        tag_name: str,
+        custom_task_ids: bool = False,
+        team_id: Optional[str] = None,
+    ) -> None:
+        """
+        Add a tag to a task.
+
+        Note: The API returns a 200 OK with an empty body on success.
+
+        Args:
+            task_id: ID of the task.
+            tag_name: Name of the tag to add.
+            custom_task_ids: Set to True to use custom task IDs.
+            team_id: Required workspace ID if custom_task_ids is True.
+
+        Raises:
+            ValueError: If custom_task_ids is True but team_id is not provided.
+            AuthenticationError: If authentication fails.
+            ResourceNotFound: If the task or tag doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {}
+        if custom_task_ids:
+            if not team_id:
+                raise ValueError("team_id is required when custom_task_ids is True.")
+            params["custom_task_ids"] = "true"
+            params["team_id"] = team_id
+
+        await self._request("POST", f"task/{task_id}/tag/{tag_name}", params=params)
+        # No return value
+
+    async def remove_tag_from_task(
+        self,
+        task_id: str,
+        tag_name: str,
+        custom_task_ids: bool = False,
+        team_id: Optional[str] = None,
+    ) -> None:
+        """
+        Remove a tag from a task.
+
+        Note: The API returns a 200 OK with an empty body on success.
+
+        Args:
+            task_id: ID of the task.
+            tag_name: Name of the tag to remove.
+            custom_task_ids: Set to True to use custom task IDs.
+            team_id: Required workspace ID if custom_task_ids is True.
+
+        Raises:
+            ValueError: If custom_task_ids is True but team_id is not provided.
+            AuthenticationError: If authentication fails.
+            ResourceNotFound: If the task or tag doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {}
+        if custom_task_ids:
+            if not team_id:
+                raise ValueError("team_id is required when custom_task_ids is True.")
+            params["custom_task_ids"] = "true"
+            params["team_id"] = team_id
+
+        await self._request("DELETE", f"task/{task_id}/tag/{tag_name}", params=params)
+        # No return value

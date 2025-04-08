@@ -27,6 +27,7 @@ from .resources.folder import FolderResource
 from .resources.goal import GoalResource
 from .resources.list import ListResource
 from .resources.space import SpaceResource
+from .resources.tag import TagResource
 from .resources.task import TaskResource
 from .resources.time import TimeTrackingResource
 from .resources.view import ViewResource
@@ -96,6 +97,7 @@ class ClickUp:
         self.custom_fields = CustomFieldResource(self)
         self.views = ViewResource(self)
         self.webhooks = WebhookResource(self)
+        self.tags = TagResource(self)
 
         # Context IDs for fluent interface
         self._workspace_id: Optional[str] = None

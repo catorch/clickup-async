@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .base import Priority
 from .common import Location, PriorityObject
+from .tag import Tag
 from .user import User
 
 
@@ -29,7 +30,7 @@ class Task(BaseModel):
     creator: Optional[User] = None
     assignees: List[User] = []
     checklists: List[Any] = []
-    tags: List[str] = []
+    tags: List[Tag] = []
     parent: Optional[str] = None
     priority: Optional[PriorityObject] = None
     due_date: Optional[str] = None
