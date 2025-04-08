@@ -30,6 +30,7 @@ from .resources.space import SpaceResource
 from .resources.task import TaskResource
 from .resources.time import TimeTrackingResource
 from .resources.view import ViewResource
+from .resources.webhook import WebhookResource
 from .resources.workspace import WorkspaceResource
 
 # Configure logging
@@ -94,6 +95,7 @@ class ClickUp:
         self.docs = DocResource(self)
         self.custom_fields = CustomFieldResource(self)
         self.views = ViewResource(self)
+        self.webhooks = WebhookResource(self)
 
         # Context IDs for fluent interface
         self._workspace_id: Optional[str] = None

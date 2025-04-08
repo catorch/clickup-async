@@ -18,6 +18,7 @@ from .task import BulkTimeInStatus, Task, TaskTimeInStatus, TimeInStatus
 from .time import TimeEntry
 from .user import Member, User
 from .view import View
+from .webhook import Webhook
 from .workspace import (
     AuditLogApplicability,
     AuditLogEntry,
@@ -88,4 +89,6 @@ __all__ = [
     "DocPageListing",
     # View
     "View",
+    # Webhook
+    "Webhook",
 ]
