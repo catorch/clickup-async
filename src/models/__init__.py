@@ -17,6 +17,7 @@ from .space import FeatureConfig, Features, Space, Status
 from .task import BulkTimeInStatus, Task, TaskTimeInStatus, TimeInStatus
 from .time import TimeEntry
 from .user import Member, User
+from .view import View
 from .workspace import (
     AuditLogApplicability,
     AuditLogEntry,
@@ -85,4 +86,6 @@ __all__ = [
     "Doc",
     "DocPage",
     "DocPageListing",
+    # View
+    "View",
 ]

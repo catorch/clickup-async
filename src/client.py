@@ -29,6 +29,7 @@ from .resources.list import ListResource
 from .resources.space import SpaceResource
 from .resources.task import TaskResource
 from .resources.time import TimeTrackingResource
+from .resources.view import ViewResource
 from .resources.workspace import WorkspaceResource
 
 # Configure logging
@@ -92,6 +93,7 @@ class ClickUp:
         self.goals = GoalResource(self)
         self.docs = DocResource(self)
         self.custom_fields = CustomFieldResource(self)
+        self.views = ViewResource(self)
 
         # Context IDs for fluent interface
         self._workspace_id: Optional[str] = None
@@ -101,6 +103,7 @@ class ClickUp:
         self._task_id: Optional[str] = None
         self._template_id: Optional[str] = None
         self._doc_id: Optional[str] = None
+        self._view_id: Optional[str] = None
 
     async def __aenter__(self) -> "ClickUp":
         """Context manager entry."""
@@ -346,3 +349,8 @@ class ClickUp:
         """Set the current doc context and return the doc resource."""
         self._doc_id = doc_id
         return self.docs
+
+    def view(self, view_id: str) -> "ClickUp":
+        """Set the current view ID for subsequent operations."""
+        self._view_id = view_id
+        return self

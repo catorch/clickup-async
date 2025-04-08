@@ -31,6 +31,7 @@ from .models import (
     Task,
     TaskList,
     TimeEntry,
+    View,
     Workspace,
 )
 from .utils import convert_to_timestamp, human_readable_time, parse_time_to_milliseconds
@@ -56,4 +57,5 @@ __all__ = [
     "Comment",
     "Checklist",
     "Status",
+    "View",
 ]
