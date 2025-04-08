@@ -7,14 +7,14 @@ import logging
 import os
 import uuid
 from datetime import datetime, timedelta
-from typing import cast
+from typing import AsyncGenerator, cast
 
 import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
 
 from src import ClickUp, Task
-from src.exceptions import ClickUpError, ResourceNotFound
+from src.exceptions import ClickUpError, ResourceNotFound, ValidationError
 from src.models import PaginatedResponse, Priority, TaskList
 
 # Configure logging
@@ -72,6 +72,21 @@ async def test_list(client: ClickUp):
         await client.lists.delete(list_obj.id)
     except Exception as e:
         pytest.fail(f"Failed to set up test list: {e}")
+
+
+@pytest_asyncio.fixture
+async def test_task2(
+    client: ClickUp, test_list: TaskList
+) -> AsyncGenerator[Task, None]:
+    """Provides a second temporary task for relationship testing."""
+    task_name = f"Test Task 2 - {uuid.uuid4()}"
+    task = await client.tasks.create(list_id=test_list.id, name=task_name)
+    yield task
+    # Cleanup
+    try:
+        await client.tasks.delete(task_id=task.id)
+    except ResourceNotFound:
+        pass  # Already deleted
 
 
 @pytest.mark.asyncio
@@ -196,3 +211,64 @@ async def test_get_all_tasks_in_list(client: ClickUp, test_list: TaskList):
                 pass  # Ignore if already deleted
             except Exception as e:
                 logger.error(f"Error cleaning up task {task_id} in get_all test: {e}")
+
+
+# --- Task Relationship Tests --- #
+
+
+@pytest.mark.asyncio
+async def test_add_delete_dependency(
+    client: ClickUp, test_task: Task, test_task2: Task
+):
+    """Test adding and deleting a task dependency."""
+    # Task 1 depends on Task 2
+    add_result = await client.tasks.add_dependency(
+        task_id=test_task.id, depends_on=test_task2.id
+    )
+    assert add_result is True
+
+    # Verify by fetching task (optional, depends on whether API reflects this)
+    # fetched_task = await client.tasks.get_task(test_task.id)
+    # assert fetched_task.dependencies contains test_task2.id or similar
+
+    # Delete the dependency
+    delete_result = await client.tasks.delete_dependency(
+        task_id=test_task.id,
+        depends_on=test_task2.id,
+        dependency_of=test_task.id,  # API requires both depends_on and dependency_of as query params
+    )
+    assert delete_result is True
+
+    # Add dependency the other way (Task 1 is a dependency OF Task 2)
+    add_result_2 = await client.tasks.add_dependency(
+        task_id=test_task.id, dependency_of=test_task2.id
+    )
+    assert add_result_2 is True
+
+    # Delete this dependency
+    delete_result_2 = await client.tasks.delete_dependency(
+        task_id=test_task.id,
+        depends_on=test_task.id,
+        dependency_of=test_task2.id,  # API requires both depends_on and dependency_of as query params
+    )
+    assert delete_result_2 is True
+
+
+@pytest.mark.asyncio
+async def test_add_delete_task_link(client: ClickUp, test_task: Task, test_task2: Task):
+    """Test adding and deleting a task link."""
+    # Link Task 1 to Task 2
+    add_result = await client.tasks.add_task_link(
+        task_id=test_task.id, links_to=test_task2.id
+    )
+    assert add_result is True
+
+    # Verify by fetching task (optional, depends on whether API reflects this)
+    # fetched_task = await client.tasks.get_task(test_task.id)
+    # assert fetched_task.links contains test_task2.id or similar
+
+    # Delete the link
+    delete_result = await client.tasks.delete_task_link(
+        task_id=test_task.id, links_to=test_task2.id
+    )
+    assert delete_result is True

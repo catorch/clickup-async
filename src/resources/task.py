@@ -594,3 +594,166 @@ class TaskResource(BaseResource):
                 raise ValidationError(str(e), 400, {})
             else:
                 raise ClickUpError(str(e), e.response.status_code, {})
+
+    # --- Task Relationships --- #
+
+    async def add_dependency(
+        self,
+        task_id: str,
+        depends_on: Optional[str] = None,
+        dependency_of: Optional[str] = None,
+        custom_task_ids: bool = False,
+        team_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Set a task as waiting on or blocking another task.
+
+        Args:
+            task_id: ID of the task which is waiting on or blocking another.
+            depends_on: ID of the task that must be completed first.
+            dependency_of: ID of the task that is waiting for the task_id task.
+            custom_task_ids: Set to True to use custom task IDs.
+            team_id: Required workspace ID if custom_task_ids is True.
+
+        Returns:
+            True if successful.
+
+        Raises:
+            ValueError: If neither or both depends_on and dependency_of are provided.
+            ValueError: If custom_task_ids is True but team_id is not provided.
+            AuthenticationError: If authentication fails.
+            ResourceNotFound: If a task doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        if not (depends_on is None) ^ (dependency_of is None):
+            raise ValueError(
+                "Exactly one of 'depends_on' or 'dependency_of' must be provided."
+            )
+
+        params = {}
+        if custom_task_ids:
+            if not team_id:
+                raise ValueError("team_id is required when custom_task_ids is True.")
+            params["custom_task_ids"] = "true"
+            params["team_id"] = team_id
+
+        data = {}
+        if depends_on:
+            data["depends_on"] = depends_on
+        if dependency_of:
+            data["dependency_of"] = dependency_of
+
+        await self._request(
+            "POST", f"task/{task_id}/dependency", params=params, data=data
+        )
+        return True
+
+    async def delete_dependency(
+        self,
+        task_id: str,
+        depends_on: str,
+        dependency_of: str,
+        custom_task_ids: bool = False,
+        team_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Remove the dependency relationship between two tasks.
+
+        Args:
+            task_id: ID of the task in the relationship.
+            depends_on: ID of the task that must be completed first.
+            dependency_of: ID of the task that is waiting.
+            custom_task_ids: Set to True to use custom task IDs.
+            team_id: Required workspace ID if custom_task_ids is True.
+
+        Returns:
+            True if successful.
+
+        Raises:
+            ValueError: If custom_task_ids is True but team_id is not provided.
+            AuthenticationError: If authentication fails.
+            ResourceNotFound: If a task doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {
+            "depends_on": depends_on,
+            "dependency_of": dependency_of,
+        }
+        if custom_task_ids:
+            if not team_id:
+                raise ValueError("team_id is required when custom_task_ids is True.")
+            params["custom_task_ids"] = "true"
+            params["team_id"] = team_id
+
+        await self._request("DELETE", f"task/{task_id}/dependency", params=params)
+        return True
+
+    async def add_task_link(
+        self,
+        task_id: str,
+        links_to: str,
+        custom_task_ids: bool = False,
+        team_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Link two tasks together.
+
+        Args:
+            task_id: ID of the task to link from.
+            links_to: ID of the task to link to.
+            custom_task_ids: Set to True to use custom task IDs for both tasks.
+            team_id: Required workspace ID if custom_task_ids is True.
+
+        Returns:
+            True if successful.
+
+        Raises:
+            ValueError: If custom_task_ids is True but team_id is not provided.
+            AuthenticationError: If authentication fails.
+            ResourceNotFound: If a task doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {}
+        if custom_task_ids:
+            if not team_id:
+                raise ValueError("team_id is required when custom_task_ids is True.")
+            params["custom_task_ids"] = "true"
+            params["team_id"] = team_id
+
+        await self._request("POST", f"task/{task_id}/link/{links_to}", params=params)
+        return True
+
+    async def delete_task_link(
+        self,
+        task_id: str,
+        links_to: str,
+        custom_task_ids: bool = False,
+        team_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Remove the link between two tasks.
+
+        Args:
+            task_id: ID of the task linked from.
+            links_to: ID of the task linked to.
+            custom_task_ids: Set to True to use custom task IDs for both tasks.
+            team_id: Required workspace ID if custom_task_ids is True.
+
+        Returns:
+            True if successful.
+
+        Raises:
+            ValueError: If custom_task_ids is True but team_id is not provided.
+            AuthenticationError: If authentication fails.
+            ResourceNotFound: If a task doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {}
+        if custom_task_ids:
+            if not team_id:
+                raise ValueError("team_id is required when custom_task_ids is True.")
+            params["custom_task_ids"] = "true"
+            params["team_id"] = team_id
+
+        await self._request("DELETE", f"task/{task_id}/link/{links_to}", params=params)
+        return True
