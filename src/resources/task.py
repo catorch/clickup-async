@@ -7,7 +7,7 @@ This module contains resource classes for interacting with task-related endpoint
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import httpx
 
@@ -826,4 +826,85 @@ class TaskResource(BaseResource):
             params["team_id"] = team_id
 
         await self._request("DELETE", f"task/{task_id}/tag/{tag_name}", params=params)
+        # No return value
+
+    # --- Guest Access --- #
+
+    async def add_guest_to_task(
+        self,
+        task_id: str,
+        guest_id: int,
+        permission_level: Literal["read", "comment", "edit", "create"],
+        custom_task_ids: bool = False,
+        team_id: Optional[str] = None,
+        include_shared: bool = True,
+    ) -> Dict[str, Any]:  # API response isn't fully defined, return dict
+        """
+        Share a task with a guest.
+        Requires Enterprise Plan.
+
+        Args:
+            task_id: ID of the task.
+            guest_id: ID of the guest.
+            permission_level: Access level ("read", "comment", "edit", "create").
+            custom_task_ids: Set to True to use custom task IDs.
+            team_id: Required workspace ID if custom_task_ids is True.
+            include_shared: Include details of items shared with the guest.
+
+        Returns:
+            Dictionary representing the task (structure may vary).
+
+        Raises:
+            ValueError: If custom_task_ids is True but team_id is not provided.
+            AuthenticationError: If authentication fails or plan is not Enterprise.
+            ResourceNotFound: If the task or guest doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {"include_shared": str(include_shared).lower()}
+        if custom_task_ids:
+            if not team_id:
+                raise ValueError("team_id is required when custom_task_ids is True.")
+            params["custom_task_ids"] = "true"
+            params["team_id"] = team_id
+
+        data = {"permission_level": permission_level}
+
+        response = await self._request(
+            "POST", f"task/{task_id}/guest/{guest_id}", params=params, data=data
+        )
+        return response  # Return raw dict as structure isn't guaranteed
+
+    async def remove_guest_from_task(
+        self,
+        task_id: str,
+        guest_id: int,
+        custom_task_ids: bool = False,
+        team_id: Optional[str] = None,
+        include_shared: bool = True,
+    ) -> None:
+        """
+        Revoke a guest's access to a task.
+        Requires Enterprise Plan.
+
+        Args:
+            task_id: ID of the task.
+            guest_id: ID of the guest.
+            custom_task_ids: Set to True to use custom task IDs.
+            team_id: Required workspace ID if custom_task_ids is True.
+            include_shared: Include details of items shared with the guest.
+
+        Raises:
+            ValueError: If custom_task_ids is True but team_id is not provided.
+            AuthenticationError: If authentication fails or plan is not Enterprise.
+            ResourceNotFound: If the task or guest doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {"include_shared": str(include_shared).lower()}
+        if custom_task_ids:
+            if not team_id:
+                raise ValueError("team_id is required when custom_task_ids is True.")
+            params["custom_task_ids"] = "true"
+            params["team_id"] = team_id
+
+        await self._request("DELETE", f"task/{task_id}/guest/{guest_id}", params=params)
         # No return value

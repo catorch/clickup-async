@@ -26,6 +26,7 @@ from .models import (
     Checklist,
     Comment,
     Folder,
+    Guest,
     Space,
     Status,
     Tag,
@@ -62,4 +63,5 @@ __all__ = [
     "View",
     "Webhook",
     "Tag",
+    "Guest",
 ]

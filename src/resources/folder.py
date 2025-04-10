@@ -4,7 +4,7 @@ Folder resources for ClickUp API.
 This module contains resource classes for interacting with folder-related endpoints.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from ..models import Folder
 from .base import BaseResource
@@ -209,3 +209,63 @@ class FolderResource(BaseResource):
         )
 
         return Folder.model_validate(response)
+
+    # --- Guest Access --- #
+
+    async def add_guest_to_folder(
+        self,
+        folder_id: str,
+        guest_id: int,
+        permission_level: Literal["read", "comment", "edit", "create"],
+        include_shared: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Share a Folder with a guest.
+        Requires Enterprise Plan.
+
+        Args:
+            folder_id: ID of the Folder.
+            guest_id: ID of the guest.
+            permission_level: Access level ("read", "comment", "edit", "create").
+            include_shared: Include details of items shared with the guest.
+
+        Returns:
+            Dictionary representing the Folder (structure may vary).
+
+        Raises:
+            AuthenticationError: If authentication fails or plan is not Enterprise.
+            ResourceNotFound: If the Folder or guest doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {"include_shared": str(include_shared).lower()}
+        data = {"permission_level": permission_level}
+        response = await self._request(
+            "POST", f"folder/{folder_id}/guest/{guest_id}", params=params, data=data
+        )
+        return response  # Return raw dict
+
+    async def remove_guest_from_folder(
+        self,
+        folder_id: str,
+        guest_id: int,
+        include_shared: bool = True,
+    ) -> None:
+        """
+        Revoke a guest's access to a Folder.
+        Requires Enterprise Plan.
+
+        Args:
+            folder_id: ID of the Folder.
+            guest_id: ID of the guest.
+            include_shared: Include details of items shared with the guest.
+
+        Raises:
+            AuthenticationError: If authentication fails or plan is not Enterprise.
+            ResourceNotFound: If the Folder or guest doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {"include_shared": str(include_shared).lower()}
+        await self._request(
+            "DELETE", f"folder/{folder_id}/guest/{guest_id}", params=params
+        )
+        # No return value

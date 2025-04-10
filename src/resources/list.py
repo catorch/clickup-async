@@ -5,7 +5,7 @@ This module contains resource classes for interacting with list-related endpoint
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from ..models import Priority, TaskList
 from ..utils import convert_to_timestamp
@@ -397,3 +397,61 @@ class ListResource(BaseResource):
         }
         response = await self._request("GET", f"list/{list_id}", params=params)
         return TaskList.model_validate(response)
+
+    # --- Guest Access --- #
+
+    async def add_guest_to_list(
+        self,
+        list_id: str,
+        guest_id: int,
+        permission_level: Literal["read", "comment", "edit", "create"],
+        include_shared: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Share a List with a guest.
+        Requires Enterprise Plan.
+
+        Args:
+            list_id: ID of the List.
+            guest_id: ID of the guest.
+            permission_level: Access level ("read", "comment", "edit", "create").
+            include_shared: Include details of items shared with the guest.
+
+        Returns:
+            Dictionary representing the List (structure may vary).
+
+        Raises:
+            AuthenticationError: If authentication fails or plan is not Enterprise.
+            ResourceNotFound: If the List or guest doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {"include_shared": str(include_shared).lower()}
+        data = {"permission_level": permission_level}
+        response = await self._request(
+            "POST", f"list/{list_id}/guest/{guest_id}", params=params, data=data
+        )
+        return response  # Return raw dict
+
+    async def remove_guest_from_list(
+        self,
+        list_id: str,
+        guest_id: int,
+        include_shared: bool = True,
+    ) -> None:
+        """
+        Revoke a guest's access to a List.
+        Requires Enterprise Plan.
+
+        Args:
+            list_id: ID of the List.
+            guest_id: ID of the guest.
+            include_shared: Include details of items shared with the guest.
+
+        Raises:
+            AuthenticationError: If authentication fails or plan is not Enterprise.
+            ResourceNotFound: If the List or guest doesn't exist.
+            ClickUpError: For other API errors.
+        """
+        params = {"include_shared": str(include_shared).lower()}
+        await self._request("DELETE", f"list/{list_id}/guest/{guest_id}", params=params)
+        # No return value

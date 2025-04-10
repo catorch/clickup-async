@@ -12,6 +12,7 @@ from .common import CustomField, Location, PriorityObject
 from .doc import Doc, DocPage, DocPageListing
 from .folder import Folder
 from .goal import Goal, KeyResult
+from .guest import Guest
 from .list import TaskList
 from .space import FeatureConfig, Features, Space, Status
 from .tag import Tag
@@ -94,4 +95,6 @@ __all__ = [
     "Webhook",
     # Tag
     "Tag",
+    # Guest
+    "Guest",
 ]
