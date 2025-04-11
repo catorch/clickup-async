@@ -20,7 +20,7 @@ import pytest_asyncio
 from dotenv import load_dotenv
 
 from src import ClickUp
-from src.exceptions import ValidationError
+from src.exceptions import ClickUpError, ValidationError
 from src.models import Priority
 
 # Configure logging
@@ -147,9 +147,11 @@ async def test_list_operations(client):
                 task_id=task.id, list_id=another_list.id
             )
             assert result is True
-        except ValidationError as e:
-            if "Tasks in multiple lists limit exceeded" in str(e):
-                pytest.skip("Tasks in Multiple Lists feature is not enabled")
+        except (ValidationError, ClickUpError) as e:
+            if "multiple lists" in str(e).lower() or "limit" in str(e).lower():
+                pytest.skip(
+                    "Tasks in Multiple Lists feature is not enabled or usage is limited"
+                )
             raise
     finally:
         # Clean up
