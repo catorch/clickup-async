@@ -5,194 +5,209 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://static.pepy.tech/badge/clickup-async/month)](https://pepy.tech/project/clickup-async)
 
-A modern, high-performance Python client for the ClickUp API with first-class async support.
+A modern, high-performance Python client for the ClickUp API with first-class async support. Built for developers who need robust, type-safe, and efficient ClickUp integration in their Python applications.
 
-## Why Choose ClickUp Async?
+## 🌟 Why Choose ClickUp Async?
+
+Transform your ClickUp workflow automation with a library that prioritizes developer experience and performance:
 
 | Feature | ClickUp Async | Other Libraries |
 |---------|--------------|-----------------|
-| **Async Support** | ✅ Full async/await | ❌ Synchronous only |
-| **Type Safety** | ✅ Full type hints & validation | ❌ Limited or none |
-| **Rate Limiting** | ✅ Intelligent handling | ❌ Basic or none |
-| **Fluent Interface** | ✅ Clean, chainable API | ❌ Verbose calls |
-| **Modern Python** | ✅ Python 3.9+ features | ❌ Legacy compatibility |
-| **Error Handling** | ✅ Comprehensive | ❌ Basic exceptions |
-| **Pagination** | ✅ Automatic | ❌ Manual handling |
-| **Maintenance** | ✅ Active development | ❌ Limited updates |
+| **Async Support** | ✅ Full async/await with concurrent operations | ❌ Synchronous only |
+| **Type Safety** | ✅ Comprehensive type hints & Pydantic validation | ❌ Limited or none |
+| **Rate Limiting** | ✅ Smart handling with exponential backoff | ❌ Basic or none |
+| **Fluent Interface** | ✅ Intuitive, chainable API design | ❌ Verbose calls |
+| **Modern Python** | ✅ Leverages Python 3.9+ features | ❌ Legacy compatibility |
+| **Error Handling** | ✅ Detailed exceptions with context | ❌ Basic exceptions |
+| **Pagination** | ✅ Automatic with async iterators | ❌ Manual handling |
+| **Documentation** | ✅ Comprehensive with examples | ❌ Limited coverage |
+| **Maintenance** | ✅ Active development & support | ❌ Irregular updates |
 
-## Installation
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
 pip install clickup-async
 ```
 
-## Quick Start
+### Basic Usage
 
 ```python
 import asyncio
 from clickup_async import ClickUp
-from clickup_async.models import Priority
+from clickup_async.models import Priority, Task
 
 async def main():
-    # Use as a context manager for automatic cleanup
     async with ClickUp(api_token="your_token_here") as client:
-        # Get authenticated user
+        # Get user info
         user = await client.get_authenticated_user()
-        print(f"Authenticated as: {user.username}")
+        print(f"👋 Welcome, {user.username}!")
         
-        # Get all workspaces
-        workspaces = await client.workspaces.get_workspaces()
-        
-        # Create a task with fluent interface
-        task = await client.list("your_list_id").tasks.create_task(
-            name="Implement new feature",
-            description="Add the awesome new feature",
+        # Create a task with rich metadata
+        task = await client.list("list_id").tasks.create_task(
+            name="Launch New Feature",
+            description="## Objective\nImplement the new feature with following requirements:\n\n- High performance\n- User friendly\n- Well tested",
             priority=Priority.HIGH,
-            due_date="next Friday"
+            due_date="next Friday",
+            tags=["feature", "backend"],
+            notify_all=True
         )
         
-        print(f"Created task: {task.name} (ID: {task.id})")
+        print(f"✨ Created task: {task.name} (ID: {task.id})")
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## Key Features
+## 📚 Comprehensive Feature Guide
 
-### 🎯 Supported Features
-
-ClickUp Async provides comprehensive support for the following ClickUp features:
-
-| Feature | Description |
-|---------|------------|
-| **Authentication** | Secure API token authentication and user management |
-| **Workspaces** | Create and manage teams, handle workspace settings |
-| **Spaces** | Organize work with spaces, manage space settings |
-| **Folders** | Create, update, and organize folders within spaces |
-| **Lists** | Manage task lists with full CRUD operations |
-| **Tasks** | Complete task management with custom fields, dependencies |
-| **Custom Fields** | Create and manage custom fields for tasks |
-| **Custom Task Types** | Define and work with custom task types |
-| **Time Tracking** | Track time entries and manage time estimates |
-| **Comments** | Add, edit, and manage comments on tasks |
-| **Checklists** | Create and manage task checklists |
-| **Tags** | Manage and organize with tags |
-| **Goals** | Create and track goals and key results |
-| **Views** | Work with custom views and view settings |
-| **Webhooks** | Set up and manage webhooks for real-time updates |
-| **Docs** | Create and manage ClickUp docs |
-| **Guests** | Manage guest users and permissions |
-| **Teams** | Team management and settings |
-
-### ⚡ Async First
-
-All API operations use `httpx` for non-blocking I/O, making your applications more efficient and responsive.
+### 🔐 Authentication & Setup
 
 ```python
-# Concurrent API calls
-tasks = await asyncio.gather(
-    client.get_task("task1"),
-    client.get_task("task2"),
-    client.get_task("task3")
-)
-```
+from clickup_async import ClickUp
 
-### 🔄 Smart Rate Limiting
+# Basic setup
+client = ClickUp(api_token="your_token")
 
-Automatically handles ClickUp API rate limits with exponential backoff and proactive throttling.
-
-```python
-# Configure rate limiting behavior
+# Advanced configuration
 client = ClickUp(
     api_token="your_token",
-    retry_rate_limited_requests=True,  # Auto retry when rate limited
-    rate_limit_buffer=5                # Buffer seconds before hitting limits
+    retry_rate_limited_requests=True,
+    rate_limit_buffer=5,
+    timeout=30,
+    base_url="https://api.clickup.com/api/v2"
 )
 ```
 
-### 🔍 Type Safety
+### 📋 Task Management
 
-Comprehensive type hints for better IDE integration and Pydantic models for runtime validation.
-
-```python
-# Full type hints
-from clickup_async.models import Task, Workspace, Space
-
-async def process_task(task: Task) -> None:
-    # IDE auto-completion works!
-    print(f"Task: {task.name}, Status: {task.status.status}")
-```
-
-### 📝 Fluent Interface
-
-Intuitive, chainable API design that reflects ClickUp's resource hierarchy.
+Create, update, and manage tasks with rich functionality:
 
 ```python
-# Access resources through the fluent interface
-workspaces = await client.workspaces.get_workspaces()
-spaces = await client.workspace("workspace_id").spaces.get_spaces()
-folders = await client.space("space_id").folders.get_folders()
-lists = await client.folder("folder_id").lists.get_lists()
-tasks = await client.list("list_id").tasks.get_tasks()
-
-# Create a comment on a task
-comment = await client.task("task_id").comments.create_comment("Great work!")
-
-# Work with docs
-doc = await client.docs.create_doc(
-    title="Project Requirements", 
-    content="# Requirements\n\n...", 
-    parent={"id": "folder_id", "type": "folder"}
-)
-```
-
-### Working with Tasks
-
-```python
-from datetime import datetime, timedelta
-from clickup_async.models import Priority
-
-# Create a task
+# Create a task with custom fields
 task = await client.list("list_id").tasks.create_task(
-    name="New task",
-    description="Task description with **markdown** support",
-    priority=Priority.HIGH,
-    due_date=datetime.now() + timedelta(days=7),
+    name="New Feature Implementation",
+    description="Implement the new feature",
     assignees=["user_id"],
-    tags=["feature", "backend"]
+    tags=["feature"],
+    custom_fields=[{
+        "id": "field_id",
+        "value": "High Impact"
+    }]
 )
 
-# Update a task
-updated_task = await client.task("task_id").update(
-    name="Updated task name",
-    status="In Progress"
+# Update task status
+updated_task = await client.task(task.id).update(
+    status="In Progress",
+    priority=Priority.URGENT
 )
 
-# Get tasks with filtering
+# Add time tracking
+await client.task(task.id).time.add_time_entry(
+    duration=3600,  # 1 hour in seconds
+    description="Initial implementation"
+)
+
+# Add a comment with attachments
+await client.task(task.id).comments.create_comment(
+    text="Please review the implementation",
+    assignee="user_id",
+    notify_all=True
+)
+```
+
+### 🔄 Working with Lists and Views
+
+Manage task lists and custom views efficiently:
+
+```python
+# Create a new list
+new_list = await client.folder("folder_id").lists.create_list(
+    name="Q4 Projects",
+    content="Strategic projects for Q4",
+    due_date="end of quarter"
+)
+
+# Get tasks with advanced filtering
 tasks = await client.list("list_id").tasks.get_tasks(
     due_date_gt="today",
-    due_date_lt="next week",
+    due_date_lt="next month",
     assignees=["user_id"],
-    include_closed=False
+    include_closed=False,
+    subtasks=True,
+    order_by="due_date"
+)
+
+# Create a custom view
+view = await client.list("list_id").views.create_view(
+    name="High Priority Tasks",
+    type="list",
+    filters={
+        "priority": [Priority.HIGH, Priority.URGENT]
+    }
 )
 ```
 
-### Pagination Handling
+### 📊 Goals and Tracking
+
+Set up and track goals with key results:
 
 ```python
-# Get first page of tasks
-tasks_page = await client.list("list_id").tasks.get_tasks()
+# Create a new goal
+goal = await client.team("team_id").goals.create_goal(
+    name="Increase Performance",
+    due_date="end of quarter",
+    description="Improve system performance metrics"
+)
 
-# Process all tasks across all pages
-all_tasks = []
-while True:
-    all_tasks.extend(tasks_page.items)
-    if not tasks_page.has_more:
-        break
-    tasks_page = await tasks_page.next_page()
+# Add key results
+key_result = await client.goal(goal.id).key_results.create_key_result(
+    name="Reduce Response Time",
+    steps=100,
+    unit="ms",
+    start_value=200,
+    target_value=50
+)
 ```
 
-## Development
+### 🔔 Webhooks and Automation
+
+Set up real-time notifications and automation:
+
+```python
+# Create a webhook
+webhook = await client.workspace("workspace_id").webhooks.create_webhook(
+    endpoint="https://your-domain.com/webhook",
+    events=["taskCreated", "taskUpdated"],
+    space_id="space_id"
+)
+
+# Get webhook history
+history = await client.webhook(webhook.id).get_webhook_history()
+```
+
+### 🔄 Smart Pagination
+
+Handle large datasets efficiently with automatic pagination:
+
+```python
+async def get_all_tasks(list_id: str) -> list[Task]:
+    tasks_page = await client.list(list_id).tasks.get_tasks()
+    all_tasks = []
+    
+    while True:
+        all_tasks.extend(tasks_page.items)
+        if not tasks_page.has_more:
+            break
+        tasks_page = await tasks_page.next_page()
+    
+    return all_tasks
+```
+
+## 🛠️ Development and Testing
+
+### Setting Up Development Environment
 
 1. Clone the repository
    ```bash
@@ -200,7 +215,7 @@ while True:
    cd clickup-async
    ```
 
-2. Set up a virtual environment
+2. Create virtual environment
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -211,11 +226,15 @@ while True:
    pip install -e ".[dev,test]"
    ```
 
-4. Run tests (requires a ClickUp API token in the environment)
-   ```bash
-   export CLICKUP_API_KEY=your_token_here
-   pytest
-   ```
+### Running Tests
+
+```bash
+# Set up environment variables
+export CLICKUP_API_KEY=your_token_here
+
+# Run tests with coverage
+pytest --cov=clickup_async
+```
 
 ## License
 
@@ -224,3 +243,5 @@ MIT License - See [LICENSE](LICENSE) for details.
 ---
 
 ⭐ If you find this library helpful, please consider starring it on GitHub!
+
+💡 Need help? [Open an issue](https://github.com/catorch/clickup-async/issues) or join our [Discord community](https://discord.gg/your-discord).
