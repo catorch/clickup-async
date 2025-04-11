@@ -332,4 +332,4 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 ⭐ If you find this library helpful, please consider starring it on GitHub!
 
-💡 Need help? [Open an issue](https://github.com/catorch/clickup-async/issues) or join our [Discord community](https://discord.gg/your-discord).
+💡 Need help? [Open an issue](https://github.com/catorch/clickup-async/issues).
