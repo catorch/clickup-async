@@ -5,7 +5,7 @@ This package provides a clean, asynchronous interface to work with the ClickUp A
 """
 
 # Version info
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 __author__ = "catorch"
 __repository__ = "https://github.com/catorch/clickup-async"
 
