@@ -201,9 +201,16 @@ class ClickUp:
                 self._update_rate_limit_info(response)
 
                 # Handle 204 No Content responses
-                if response.status_code == 204:
+                if response.status_code == 204 or not response.content.strip():
                     return {}
-                return response.json()
+
+                try:
+                    return response.json()
+                except ValueError:
+                    logger.warning(
+                        f"Expected JSON but received empty or invalid body for {method} {url}"
+                    )
+                    return {}
 
             except httpx.HTTPStatusError as e:
                 error_data = {}

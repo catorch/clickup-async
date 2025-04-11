@@ -13,7 +13,7 @@ class DocPage(BaseModel):
     """Represents a page in a ClickUp doc."""
 
     id: str
-    name: str
+    name: Optional[str] = None
     content: Optional[str] = None
     sub_title: Optional[str] = None
     parent_page_id: Optional[str] = None
@@ -29,12 +29,17 @@ class DocPageListing(BaseModel):
     """Represents a page listing in a ClickUp doc."""
 
     id: str
-    name: str
+    name: Optional[str] = None
     sub_title: Optional[str] = None
     parent_page_id: Optional[str] = None
     pages: List["DocPageListing"] = Field(default_factory=list)
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        validate_assignment=True,
+        extra="ignore",
+    )
 
 
 class Doc(BaseModel):

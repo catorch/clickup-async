@@ -4,10 +4,13 @@ Doc resources for ClickUp API.
 This module contains resource classes for interacting with doc-related endpoints.
 """
 
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..models import Doc, DocPage, DocPageListing
 from .base import BaseResource
+
+logger = logging.getLogger(__name__)
 
 
 class DocResource(BaseResource):
@@ -191,6 +194,10 @@ class DocResource(BaseResource):
             params=params,
             api_version="v3",
         )
+        logger.info(f"API Response for page listing: {response}")
+        logger.debug("Page listing entries:")
+        for page in response:
+            logger.debug(f"Page data: {page}")
         return [DocPageListing.model_validate(page) for page in response]
 
     async def get_pages(
@@ -394,6 +401,16 @@ class DocResource(BaseResource):
             data=data,
             api_version="v3",
         )
+
+        # Handle cases where response is empty or missing required fields
+        if not response or "id" not in response:
+            logger.warning(
+                "Update returned empty or invalid response, re-fetching page."
+            )
+            return await self.get_page(
+                page_id=page_id, doc_id=doc_id, workspace_id=workspace_id
+            )
+
         return DocPage.model_validate(response)
 
     async def delete_page(

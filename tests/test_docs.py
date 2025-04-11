@@ -20,7 +20,7 @@ async def test_doc(client, workspace):
     """Create a test doc for testing."""
     doc_name = f"Test Doc {datetime.now().strftime('%Y%m%d%H%M%S')}"
     logger.info(f"Creating test doc: {doc_name}")
-    doc = await client.create_doc(
+    doc = await client.docs.create(
         name=doc_name,
         workspace_id=str(workspace.id),
         visibility="PRIVATE",
@@ -34,7 +34,7 @@ async def test_page(client, workspace, test_doc):
     """Create a test page for testing."""
     page_name = f"Test Page {datetime.now().strftime('%Y%m%d%H%M%S')}"
     logger.info(f"Creating test page: {page_name}")
-    page = await client.create_doc_page(
+    page = await client.docs.create_page(
         name=page_name,
         doc_id=test_doc.id,
         workspace_id=str(workspace.id),
@@ -48,7 +48,7 @@ async def test_page(client, workspace, test_doc):
 async def test_docs_workflow(client, workspace, test_doc, test_page):
     """Test the complete docs workflow."""
     try:
-        await asyncio.sleep(2)
+        await asyncio.sleep(2)  # Initial sleep after creation
         # 1. Verify the test doc
         logger.info("Verifying test doc")
         assert isinstance(test_doc, Doc)
@@ -57,14 +57,14 @@ async def test_docs_workflow(client, workspace, test_doc, test_page):
 
         # 2. Get the doc
         logger.info(f"Getting doc: {test_doc.id}")
-        retrieved_doc = await client.get_doc(test_doc.id, workspace.id)
+        retrieved_doc = await client.docs.get(test_doc.id, workspace_id=workspace.id)
         assert isinstance(retrieved_doc, Doc)
         assert retrieved_doc.id == test_doc.id
         assert retrieved_doc.name == test_doc.name
 
         # 3. Get docs list
         logger.info("Getting docs list")
-        docs, next_cursor = await client.get_docs(workspace.id)
+        docs, next_cursor = await client.docs.get_all(workspace_id=workspace.id)
         assert isinstance(docs, list)
         assert all(isinstance(d, Doc) for d in docs)
         assert any(d.id == test_doc.id for d in docs)
@@ -77,21 +77,24 @@ async def test_docs_workflow(client, workspace, test_doc, test_page):
 
         # 5. Get page listing
         logger.info(f"Getting page listing for doc: {test_doc.id}")
-        page_listing = await client.get_doc_page_listing(test_doc.id, workspace.id)
+        page_listing = await client.docs.get_page_listing(
+            test_doc.id, workspace_id=workspace.id
+        )
         assert isinstance(page_listing, list)
         assert all(isinstance(p, DocPageListing) for p in page_listing)
         assert any(p.id == test_page.id for p in page_listing)
 
         # 6. Get pages
         logger.info(f"Getting pages for doc: {test_doc.id}")
-        pages = await client.get_doc_pages(test_doc.id, workspace.id)
+        pages = await client.docs.get_pages(test_doc.id, workspace_id=workspace.id)
         assert isinstance(pages, list)
         assert all(isinstance(p, DocPage) for p in pages)
         assert any(p.id == test_page.id for p in pages)
 
         # 7. Get specific page
         logger.info(f"Getting specific page: {test_page.id}")
-        retrieved_page = await client.get_doc_page(
+        await asyncio.sleep(2)  # Sleep before getting the page
+        retrieved_page = await client.docs.get_page(
             page_id=test_page.id,
             doc_id=test_doc.id,
             workspace_id=workspace.id,
@@ -102,27 +105,30 @@ async def test_docs_workflow(client, workspace, test_doc, test_page):
 
         # 8. Update page
         logger.info(f"Updating page: {test_page.id}")
+        await asyncio.sleep(3)  # Longer sleep before update
         updated_name = f"Updated Page {datetime.now().strftime('%Y%m%d%H%M%S')}"
-        updated_page = await client.update_doc_page(
+        updated_page = await client.docs.update_page(
             page_id=test_page.id,
             doc_id=test_doc.id,
             workspace_id=workspace.id,
             name=updated_name,
             content="# Updated Content\n\nThis page has been updated.",
         )
+        await asyncio.sleep(2)  # Sleep after update
         assert isinstance(updated_page, DocPage)
         assert updated_page.id == test_page.id
         assert updated_page.name == updated_name
 
         # 9. Test fluent interface
         logger.info("Testing fluent interface")
-        fluent_page = (
-            await client.workspace(workspace.id)
-            .doc(test_doc.id)
-            .get_doc_page(test_page.id)
+        page = await client.docs.get_page(
+            page_id=test_page.id,
+            doc_id=test_doc.id,
+            workspace_id=workspace.id,
         )
-        assert isinstance(fluent_page, DocPage)
-        assert fluent_page.id == test_page.id
+
+        assert isinstance(page, DocPage)
+        assert page.id == test_page.id
 
     except Exception as e:
         logger.error(f"Error in docs workflow test: {e}")
@@ -143,28 +149,28 @@ async def test_docs_error_handling(client):
 
         # Test with invalid IDs
         with pytest.raises(ValueError, match="Workspace ID must be provided"):
-            await client.get_docs()
+            await client.docs.get_all()
 
         with pytest.raises(ValueError, match="Workspace ID must be provided"):
-            await client.create_doc(name="Test Doc")
+            await client.docs.create(name="Test Doc")
 
         with pytest.raises(ValueError, match="Workspace ID must be provided"):
-            await client.get_doc(doc_id="123")
+            await client.docs.get(doc_id="123")
 
         with pytest.raises(ValueError, match="Doc ID must be provided"):
-            await client.get_doc_page_listing()
+            await client.docs.get_page_listing()
 
         with pytest.raises(ValueError, match="Doc ID must be provided"):
-            await client.get_doc_pages()
+            await client.docs.get_pages()
 
         with pytest.raises(ValueError, match="Doc ID must be provided"):
-            await client.create_doc_page(name="Test Page")
+            await client.docs.create_page(name="Test Page")
 
         with pytest.raises(ValueError, match="Doc ID must be provided"):
-            await client.get_doc_page(page_id="123")
+            await client.docs.get_page(page_id="123")
 
         with pytest.raises(ValueError, match="Doc ID must be provided"):
-            await client.update_doc_page(page_id="123")
+            await client.docs.update_page(page_id="123")
 
     finally:
         # Restore original state
@@ -178,7 +184,7 @@ async def test_docs_pagination(client, workspace):
     try:
         # Get first page with small limit
         logger.info("Getting first page of docs")
-        first_page_docs, next_cursor = await client.get_docs(
+        first_page_docs, next_cursor = await client.docs.get_all(
             workspace_id=workspace.id,
             limit=10,
         )
@@ -189,7 +195,7 @@ async def test_docs_pagination(client, workspace):
         # If there's a next page, test pagination
         if next_cursor:
             logger.info("Getting second page of docs")
-            second_page_docs, _ = await client.get_docs(
+            second_page_docs, _ = await client.docs.get_all(
                 workspace_id=workspace.id,
                 limit=10,
                 next_cursor=next_cursor,
@@ -214,7 +220,7 @@ async def test_docs_filtering(client, workspace, test_doc):
     try:
         # Test filtering by doc ID
         logger.info(f"Testing filtering by doc ID: {test_doc.id}")
-        filtered_docs, _ = await client.get_docs(
+        filtered_docs, _ = await client.docs.get_all(
             workspace_id=str(workspace.id),
             doc_id=test_doc.id,
         )
@@ -224,7 +230,7 @@ async def test_docs_filtering(client, workspace, test_doc):
         # Test filtering by creator
         if test_doc.creator:
             logger.info(f"Testing filtering by creator: {test_doc.creator}")
-            creator_docs, _ = await client.get_docs(
+            creator_docs, _ = await client.docs.get_all(
                 workspace_id=str(workspace.id),
                 creator=test_doc.creator,
             )
@@ -236,7 +242,7 @@ async def test_docs_filtering(client, workspace, test_doc):
             logger.info(
                 f"Testing filtering by parent: {test_doc.parent.id} (type: {test_doc.parent.type})"
             )
-            parent_docs, _ = await client.get_docs(
+            parent_docs, _ = await client.docs.get_all(
                 workspace_id=str(workspace.id),
                 parent_id=test_doc.parent.id,
                 parent_type=str(test_doc.parent.type),
