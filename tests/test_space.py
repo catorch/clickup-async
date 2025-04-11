@@ -41,14 +41,14 @@ async def test_get_space(client, test_space):
 async def test_space_fluent_interface(client, test_space):
     """Test the fluent interface for space operations."""
     # Test chaining space operations
-    space_details = await client.space(test_space.id).spaces.get_space()
+    space_details = await client.space(test_space.id).get_space()
     assert isinstance(space_details, Space)
     assert space_details.id == test_space.id
     assert space_details.name == test_space.name
 
     # Test chaining with update
     new_name = f"Fluent Updated Space {uuid.uuid4()}"
-    updated_space = await client.space(test_space.id).spaces.update_space(name=new_name)
+    updated_space = await client.space(test_space.id).update_space(name=new_name)
     assert isinstance(updated_space, Space)
     assert updated_space.id == test_space.id
     assert updated_space.name == new_name
