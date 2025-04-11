@@ -350,11 +350,10 @@ class GoalResource(BaseResource):
         if "key_result" not in response:
             raise ClickUpError("Unexpected response format: missing 'key_result' key")
 
-        # Merge the request data with the response data to ensure all required fields are present
         key_result_data = response["key_result"]
-        for key, value in data.items():
-            if key in key_result_data and key_result_data[key] is None:
-                key_result_data[key] = value
+
+        # Overwrite or set all fields from the update payload
+        key_result_data.update(data)
 
         return KeyResult.model_validate(key_result_data)
 
