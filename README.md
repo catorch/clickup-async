@@ -149,6 +149,94 @@ view = await client.list("list_id").views.create_view(
 )
 ```
 
+### 📁 Workspace, Space, and Folder Management
+
+Navigate and manage your ClickUp hierarchy with ease:
+
+```python
+# Get all workspaces
+workspaces = await client.workspaces.get_workspaces()
+
+# Working with Spaces
+# Create a new space
+space = await client.workspace("workspace_id").spaces.create_space(
+    name="Product Development",
+    features={"due_dates", "time_tracking", "tags"},
+    private=True
+)
+
+# Update space settings
+updated_space = await client.space(space.id).update(
+    name="Product Development 2023",
+    features={"due_dates", "time_tracking", "tags", "priorities"}
+)
+
+# Get all spaces in a workspace
+spaces = await client.workspace("workspace_id").spaces.get_spaces()
+
+# Working with Folders
+# Create a folder in a space
+folder = await client.space("space_id").folders.create_folder(
+    name="Q4 Projects",
+    description="All projects for Q4 2023"
+)
+
+# Update folder
+updated_folder = await client.folder(folder.id).update(
+    name="Q4 Strategic Projects"
+)
+
+# Get all folders in a space
+folders = await client.space("space_id").folders.get_folders()
+
+# Working with Lists
+# Create a list in a folder
+task_list = await client.folder("folder_id").lists.create_list(
+    name="Backend Development",
+    description="Backend tasks and features",
+    assignee="user_id",
+    due_date="next month"
+)
+
+# Create a folderless list in a space
+space_list = await client.space("space_id").lists.create_list(
+    name="Quick Tasks",
+    description="Tasks without folder organization"
+)
+
+# Update list
+updated_list = await client.list(task_list.id).update(
+    name="Backend Development Sprint 1",
+    due_date="next friday",
+    priority=Priority.HIGH
+)
+
+# Get all lists
+folder_lists = await client.folder("folder_id").lists.get_lists()
+space_lists = await client.space("space_id").lists.get_lists(include_archived=False)
+
+# Advanced folder operations
+# Move a folder to a different space
+moved_folder = await client.folder("folder_id").move(
+    destination_space="new_space_id"
+)
+
+# Advanced list operations
+# Move a list to a different folder
+moved_list = await client.list("list_id").move(
+    destination_folder="new_folder_id"
+)
+
+# Bulk operations
+# Create multiple lists in a folder
+lists = await asyncio.gather(*[
+    client.folder("folder_id").lists.create_list(
+        name=f"Sprint {i}",
+        description=f"Tasks for Sprint {i}"
+    ) for i in range(1, 4)
+])
+```
+
 ### 📊 Goals and Tracking
 
 Set up and track goals with key results:
