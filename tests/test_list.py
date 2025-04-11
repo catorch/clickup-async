@@ -17,7 +17,7 @@ import pytest_asyncio
 from dotenv import load_dotenv
 
 from src import ClickUp, TaskList
-from src.exceptions import ResourceNotFound, ValidationError
+from src.exceptions import ClickUpError, ResourceNotFound, ValidationError
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -197,10 +197,11 @@ async def test_multiple_list_operations(client):
             ), f"Failed to remove task {task.id} from list {list2.id}"
             logger.info(f"Removed task {task.id} from list {list2.id}")
 
-        except ValidationError as e:
-            if "Tasks in multiple lists limit exceeded" in str(e):
+        except (ValidationError, ClickUpError) as e:
+            msg = str(e).lower()
+            if "multiple list" in msg or "limit" in msg or "403" in msg:
                 pytest.skip(
-                    "Workspace has reached the limit for tasks in multiple lists"
+                    "Tasks in Multiple Lists feature is not enabled or usage quota reached."
                 )
             raise
     finally:
