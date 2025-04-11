@@ -59,6 +59,31 @@ if __name__ == "__main__":
 
 ## Key Features
 
+### 🎯 Supported Features
+
+ClickUp Async provides comprehensive support for the following ClickUp features:
+
+| Feature | Description |
+|---------|------------|
+| **Authentication** | Secure API token authentication and user management |
+| **Workspaces** | Create and manage teams, handle workspace settings |
+| **Spaces** | Organize work with spaces, manage space settings |
+| **Folders** | Create, update, and organize folders within spaces |
+| **Lists** | Manage task lists with full CRUD operations |
+| **Tasks** | Complete task management with custom fields, dependencies |
+| **Custom Fields** | Create and manage custom fields for tasks |
+| **Custom Task Types** | Define and work with custom task types |
+| **Time Tracking** | Track time entries and manage time estimates |
+| **Comments** | Add, edit, and manage comments on tasks |
+| **Checklists** | Create and manage task checklists |
+| **Tags** | Manage and organize with tags |
+| **Goals** | Create and track goals and key results |
+| **Views** | Work with custom views and view settings |
+| **Webhooks** | Set up and manage webhooks for real-time updates |
+| **Docs** | Create and manage ClickUp docs |
+| **Guests** | Manage guest users and permissions |
+| **Teams** | Team management and settings |
+
 ### ⚡ Async First
 
 All API operations use `httpx` for non-blocking I/O, making your applications more efficient and responsive.
