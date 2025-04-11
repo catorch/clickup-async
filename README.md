@@ -329,7 +329,7 @@ pytest --cov=clickup_async
 
 ## 📝 Changelog
 
-### 1.0.0 (2024-01-XX)
+### 1.0.0 (2025-04-10)
 
 First stable release! 🎉
 
